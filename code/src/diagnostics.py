@@ -43,6 +43,18 @@ def mcse(chains):
     return chains.std(ddof=1) / np.sqrt(ess(chains))
 
 
+def batch_se(draws, statistic, n_batches=10):
+    """Monte Carlo standard error of any statistic of the draws (a quantile, a predictive VaR...), by batch means.
+
+    draws: (chains, n, ...); each chain is cut into n_batches contiguous batches, much longer than the
+    autocorrelation time, so that the batch statistics are nearly independent; returns their sd / sqrt(#batches).
+    """
+    n = draws.shape[1] // n_batches
+    batches = draws[:, : n * n_batches].reshape(-1, n, *draws.shape[2:])
+    values = [statistic(b) for b in batches]
+    return np.std(values, ddof=1) / np.sqrt(len(values))
+
+
 # ======================================================================
 # [COURSE] Monte Carlo estimator of posterior summaries: Ch. 1, Def. 1.7
 # Posterior means, intervals and probabilities are averages over the draws.

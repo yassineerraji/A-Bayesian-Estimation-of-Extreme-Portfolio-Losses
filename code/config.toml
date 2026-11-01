@@ -14,6 +14,7 @@ raw_dir = "data/raw"                 # downloaded file, never overwritten
 returns = "data/returns.csv"         # processed daily log-returns
 figures = "../report/figures"        # PDF figures, included in the report
 tables = "../report/tables"          # LaTeX tables, included in the report with \input
+results = "results"                  # saved results of long runs (rebuild tables without rerunning)
 
 [prior]
 # mu ~ Normal(0, mu_sd^2);  sigma ~ HalfNormal(sigma_scale);  nu - nu_min ~ Exponential(rate = nu_rate)
@@ -24,9 +25,10 @@ nu_rate = 0.1                        # prior mean of nu - nu_min = 1 / nu_rate =
 
 [mcmc]
 seed = 2026
-chains = 4                           # chains started from dispersed points drawn from the prior
+chains = 4                           # chains run from dispersed starting points
+start_spread = 5                     # starting points: MAP + start_spread posterior sd in random directions
 pilot_iter = 5000                    # iterations of each pilot run (it estimates the proposal covariance)
-pilot_rounds = 3                     # pilot runs in a row; one is not enough when the MAP curvature is poor
+pilot_rounds = 3                     # pilot runs in a row, each refining the proposal covariance
 n_iter = 20000                       # iterations per chain, burn-in included
 burn_in = 2000                       # first iterations discarded from each chain
 
@@ -42,3 +44,37 @@ accept_max = 0.5
 mu = 0.001
 sigma = 0.007
 nu = 2.5
+
+[coverage]
+# Coverage study: n_datasets simulated data sets per tail regime, with mu and sigma from [validation]
+nus = [2.5, 4.0, 8.0]                # true nu of each regime; the first one is plotted
+n_datasets = 100                     # data sets per regime
+levels = [0.99, 0.999]               # VaR and ES levels whose intervals are checked
+
+[coverage.mcmc]
+# Lighter sampler settings for this study only; the main fits keep [mcmc]
+pilot_iter = 2000
+n_iter = 6000
+burn_in = 1000
+
+[risk]
+levels = [0.975, 0.99, 0.999]        # VaR and ES levels reported (99% is the headline)
+n_batches = 10                       # batches per chain for the Monte Carlo error of quantiles (batch means)
+
+[checks]
+n_replicates = 1000                  # replicated data sets per model for the posterior predictive checks
+loss_threshold = 5.0                 # "days with a loss above" this value, in %
+
+[sensitivity]
+# Each variant overrides some [prior] settings; "window" variants refit on a shorter period instead
+nu_rate_low = 0.05                   # prior mean of nu - nu_min = 20: favours lighter tails
+nu_rate_high = 0.5                   # prior mean of nu - nu_min = 2: favours heavier tails
+mu_sd_pitch = 0.01                   # the prior on mu presented at the pitch
+sigma_scale_wide = 0.05              # a wider prior on sigma
+nu_min_low = 1.0                     # nu > 1 only (ES is still finite)
+window_start = "2016-01-01"          # shorter, more recent window (10 years)
+n_prior_draws = 100000               # draws for the prior predictive check
+
+[crosscheck]
+n_draws = 50000                      # importance-sampling draws
+df = 4                               # degrees of freedom of the Student-t proposal (heavier tails than the posterior)

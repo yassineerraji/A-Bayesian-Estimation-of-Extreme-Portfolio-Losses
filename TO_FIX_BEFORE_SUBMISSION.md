@@ -1,60 +1,46 @@
 # To fix before submission
 
-Concerns to resolve before **Monday 16 November 2026, 23:59 (Paris)**. Tick each one when it's done.
+Concerns to resolve before **Monday 16 November 2026, 23:59 (Paris)**. Ticked items are done; the open ones are listed first.
 
-## Environment
+## Open: needs you
 
-- [ ] **Course `environment.yml` not found** (not on EduNao as far as we know). We use `.venv` + a pinned `requirements.txt` for now.
-      → Get the file (EduNao, professor or classmates), compare the Python and package versions, rerun every script in that environment, and adapt `requirements.txt`.
-- [ ] **Python ≥ 3.11 is required**, because `config.toml` is read with the built-in `tomllib`.
-      → Check the course environment's Python version. If it is older, switch the config reader (e.g. to a `config.py`).
-- [ ] **Exact reproducibility depends on package versions.** NumPy does not guarantee identical random draws across its versions.
-      → Do the final run in the pinned environment and state the versions in the README.
+- [ ] **Title block of `report/report.tex`.** Replace the two red placeholders (program, institution, country, e-mail of each author) and **underline the name of the member who submits** (`\underline{...}`).
+- [ ] **Verify every bibliography entry** in `report/references.bib` (authors, title, journal, volume, pages, year). They were written from memory, and none was looked up: Artzner et al. 1999; BCBS 2019; Mandelbrot 1963; Praetz 1972; Blattberg & Gonedes 1974; Fama & French 1993; Metropolis et al. 1953; Hastings 1970; Roberts et al. 1997; Gelman & Rubin 1992; Vehtari et al. 2021; Flegal & Jones 2010; Gelman, Meng & Stern 1996; Bollerslev 1986; Talts et al. 2018. In particular, check that the Basel standard (BCBS 2019) is the right document for "ES at 97.5%". Also check how the professor wants the lecture notes cited (`leite2026notes`).
+- [ ] **Course `environment.yml` not found.** We use a pinned `requirements.txt` (Python 3.12.13, numpy 2.5.4, scipy 1.18.1, pandas 3.1.0, matplotlib 3.11.2).
+      → If you can get the course file, rerun everything in it and compare the numbers. Python ≥ 3.11 is required (`tomllib`). NumPy does not guarantee identical random draws across its versions.
+- [ ] **Data licence.** The Fama–French site states a copyright but no explicit licence.
+      → Decide whether to ship `code/data/raw/` in the zip (recommended: it guarantees the exact numbers, since the source is revised monthly). If not, ship only the download script, which the instructions allow. The script will then fetch a newer vintage, and the numbers will move slightly.
+- [ ] **Compile check in your own LaTeX setup.** The PDF was built with Tectonic (XeTeX); the main text ends exactly at the bottom of page 8. If you compile on Overleaf or with pdfLaTeX, check that the references still start on page 9. If they don't, a line or two must go.
+- [ ] **Build the zip** (from the repository root, after the items above):
+      ```bash
+      cp report/report.pdf report.pdf
+      zip -r project-erraji-amar.zip report.pdf report code -x "*/__pycache__/*" "*.DS_Store"
+      ```
+      It must contain **only** `report.pdf`, `report/` and `code/`: no `.venv`, `AgentDiscussion/`, `context/`, `INSTRUCTIONS.md`, `EXPLANATION.md` or this file.
 
-## Data
+## Open: optional improvements
 
-- [ ] **The source is the Fama–French US market (CRSP value-weighted), not the S&P 500** named in the pitch.
-      → Name it correctly in the report and cite the data library (and CRSP).
-- [ ] **Licence.** The site states a copyright but no explicit licence.
-      → Decide whether shipping the saved data file is acceptable. If not, ship only the download script, which the instructions allow.
-- [ ] **The source is revised monthly.**
-      → Ship the saved snapshot, and record the download date and CRSP vintage in the README.
-- [ ] **The URL could change before grading.**
-      → The shipped snapshot is the fallback.
+- [ ] **ESS rule cross-check in the code.** Our ESS (sum up to the first negative autocorrelation) matched ArviZ 1.3.0 within 0–8% on 3 fits, but in a throwaway environment, so the report does not claim it. To cite it, add a small optional script using ArviZ (a diagnostics library, not a probabilistic-programming one) and its numbers.
+- [ ] **Coverage at the ν = 4 edge (90–91%).** It's explained in the report (a single effect, a mild prior pull). Rerunning with 200 data sets per regime (`[coverage] n_datasets`, about 14 minutes) would narrow the range.
+- [ ] **A formal prior-only check** (Monte Carlo error for quantiles, or a Kolmogorov–Smirnov test) instead of "within 2%".
+- [ ] **Cosmetic touches.** Model names print as "Student-t" (not italic) inside the tables, and the post-burn-in trace panels are overplotted.
 
-## Method and results to investigate
+## Done
 
-- [ ] **The single-data-set recovery misses μ narrowly** (Step 2): the 95% interval is [0.000512, 0.000993] against a true 0.001. SciPy's MLE on the same data gives μ = 0.000763, matching our posterior mean of 0.000751, so it's the data, not the sampler.
-      → Recommended: keep this seed and explain the miss in the report (the template asks us to "explain any discrepancy"); the Step 3 coverage study gives the calibrated answer. **Do not change the seed to make it pass.**
-- [ ] **Tuning robustness.** With 1 pilot round, 3 of 10 simulated data sets gave an ESS below 30. With 3 rounds, all 10 were above 5,000.
-      → Watch the coverage-study runs (Step 3) for FAILs. If any appear, raise `pilot_rounds`, or replace BFGS's inverse Hessian with a finite-difference Hessian.
-- [ ] **BFGS ends with "precision loss"**, so the MAP is not tightly converged. It's only used as a start, which is harmless.
-      → Never report the MAP as a result without a better optimizer.
-- [ ] **The ESS stopping rule is our own simplification** (sum up to the first negative autocorrelation). Cross-checked against ArviZ 1.3.0 on 3 fits: our ESS is within 0–8% and always slightly lower (conservative); R̂ is identical to 4 decimals.
-      → State the rule and the cross-check in the report (appendix).
-- [ ] **The prior-only check is compared by eye** (MH within about 2–3% of the exact quantiles), with no formal tolerance or Monte Carlo error for quantiles.
-      → Consider adding an MCSE for quantiles, or a Kolmogorov–Smirnov test.
-- [ ] **ν is close to its lower bound**: the data give ν ≈ 2.4–2.5, against `nu_min = 2`.
-      → Check the posterior mass near 2. Consider a sensitivity run with `nu_min = 1` (ES only needs ν > 1).
-- [ ] **The data table reports the excess kurtosis**, which is infinite under the fitted model (ν < 4).
-      → Add a caveat in the report, or drop that row.
-- [ ] **MCSE is reported only for posterior means.** The VaR and ES intervals (quantiles) need their own Monte Carlo error (Step 5).
-- [ ] **The post-burn-in trace panels are overplotted** (the darkest chain is drawn on top). Minor.
-      → If it reads poorly in print, thin the draws for display only.
-
-## Report
-
-- [ ] **Facts in `EXPLANATION.md` that came from general knowledge**: the 1987 crash, the "cubic law" for the tail index, Basel's ES at 97.5%.
-      → Verify and cite them if used in the report, otherwise drop them.
-- [ ] **Every number in the report comes from the code** (tables via `\input`). Check that nothing is typed by hand.
-- [ ] **Template:**
-  - remove every `\guide{...}`;
-  - underline the name of the member who submits;
-  - keep the main text to at most 8 pages;
-  - every figure has labelled axes and a caption.
-
-## Submission package
-
-- [ ] `project-erraji-amar.zip` contains **only** `report.pdf`, `report/` and `code/`. No `.venv`, `__pycache__/`, `AgentDiscussion/`, `context/`, `INSTRUCTIONS.md`, `EXPLANATION.md` or this file.
-- [ ] A from-scratch run of every script in a clean environment works. The README gives the order of the scripts, and the runtime if it is more than a few minutes.
-- [ ] Fixed seeds everywhere.
+- [x] **Data:** the source is named and cited (Fama/French data library, CRSP), not "S&P 500"; the vintage (202609 CRSP) and download date are in the README; the snapshot is never overwritten.
+- [x] **The single-data-set miss on μ** is kept and explained in the report: SciPy's MLE on the same data agrees with our posterior, so the data are responsible. The coverage study gives the calibrated answer.
+- [x] **Tuning robustness:** a finite-difference Laplace covariance, 3 pilot rounds, and starts at the MAP + 5 sd. All 300 coverage fits and all 7 real-data fits converge.
+- [x] **BFGS "precision loss":** the MAP is only a starting point and is never reported.
+- [x] **The starting points and the ESS rule** are justified and stated in the Method section.
+- [x] **Coverage:** lighter settings are stated, the ν = 4 edge is explained, and simulation-based calibration is mentioned as a next step.
+- [x] **ν near its bound:** the ν > 1 sensitivity run changes nothing; the report says the interval is clear of 2.
+- [x] **Skewness and kurtosis rows** are dropped (infinite when ν < 3); the report says why.
+- [x] **The implied sd against the sample sd, and the location against the mean**, are explained in Results 6.1.
+- [x] **Every number in the text comes from the code**, through `report/numbers/*.tex` and `\val{...}`. A missing key prints in bold as ??key??; none remain. The typed constants are model or setting inputs only (prior hyperparameters, levels, the 2.38 scaling).
+- [x] **Monte Carlo error of quantiles** by batch means (at most 0.08 points), cited.
+- [x] **The 99.9% overshoot against history** is discussed as a limitation (the model is conservative there).
+- [x] **Plug-in = posterior mean**, stated in the Model section.
+- [x] **Template:** no `\guide` text left, figures have labelled axes and captions, the main text ends at the bottom of page 8, and the appendices hold the extra material.
+- [x] **From-scratch run in a fresh environment** built from `requirements.txt` (see the Step 7 recap).
+- [x] **Fixed seeds everywhere.**
+- [x] **`EXPLANATION.md` facts:** the 1987 crash and the "cubic law" are not used in the report. The Basel 97.5% claim is cited (to verify, see above).

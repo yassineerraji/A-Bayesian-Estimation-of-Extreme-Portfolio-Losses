@@ -60,3 +60,19 @@ def log_posterior(phi, r, prior):
     """Unnormalized log posterior of phi given the returns r."""
     mu, sigma, nu = to_natural(phi, prior["nu_min"])
     return log_likelihood(mu, sigma, nu, r) + log_prior(phi, prior)
+
+
+# Gaussian benchmark model: r_t ~ Normal(mu, s^2), mu ~ Normal(0, mu_sd^2), s ~ HalfNormal(sigma_scale),
+# sampled on phi = (mu, log s) with the same Jacobian rule as above.
+def to_natural_gauss(phi):
+    """Map phi = (mu, log s) to (mu, s); works on any array whose last axis is phi."""
+    phi = np.asarray(phi)
+    return np.stack([phi[..., 0], np.exp(phi[..., 1])], axis=-1)
+
+
+def log_posterior_gauss(phi, r, prior):
+    """Unnormalized log posterior of the Gaussian model, phi = (mu, log s), Jacobian included."""
+    mu, s = phi[0], np.exp(phi[1])
+    return (-len(r) * np.log(s) - ((r - mu) ** 2).sum() / (2 * s**2)          # log-likelihood, up to a constant
+            - 0.5 * (mu / prior["mu_sd"]) ** 2 - 0.5 * (s / prior["sigma_scale"]) ** 2  # priors
+            + phi[1])                                                         # Jacobian |ds / d(log s)| = s
