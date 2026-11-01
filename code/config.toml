@@ -1,0 +1,44 @@
+# Project settings: every value a user may want to change lives here.
+# Units: daily log-returns in decimals (0.01 = 1%).
+# Paths are relative to the code/ folder.
+
+[data]
+# Fama/French 3 Factors (daily), Kenneth R. French Data Library, built from CRSP.
+url = "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_Factors_daily_CSV.zip"
+raw_file = "F-F_Research_Data_Factors_daily.csv"   # name of the CSV inside the zip
+start = "2006-01-01"                                # first day of the window (inclusive)
+end = "2025-12-31"                                  # last day of the window (inclusive)
+
+[paths]
+raw_dir = "data/raw"                 # downloaded file, never overwritten
+returns = "data/returns.csv"         # processed daily log-returns
+figures = "../report/figures"        # PDF figures, included in the report
+tables = "../report/tables"          # LaTeX tables, included in the report with \input
+
+[prior]
+# mu ~ Normal(0, mu_sd^2);  sigma ~ HalfNormal(sigma_scale);  nu - nu_min ~ Exponential(rate = nu_rate)
+mu_sd = 0.001                        # 95% of the prior mass within ±0.2% a day
+sigma_scale = 0.02                   # 95% of the prior mass below a 4% daily scale
+nu_min = 2.0                         # nu > 2: finite variance
+nu_rate = 0.1                        # prior mean of nu - nu_min = 1 / nu_rate = 10
+
+[mcmc]
+seed = 2026
+chains = 4                           # chains started from dispersed points drawn from the prior
+pilot_iter = 5000                    # iterations of each pilot run (it estimates the proposal covariance)
+pilot_rounds = 3                     # pilot runs in a row; one is not enough when the MAP curvature is poor
+n_iter = 20000                       # iterations per chain, burn-in included
+burn_in = 2000                       # first iterations discarded from each chain
+
+[diagnostics]
+# Targets checked after every fit
+rhat_max = 1.01                      # split-R-hat below this value
+ess_min = 1000                       # effective sample size at least this value
+accept_min = 0.2                     # acceptance rate inside [accept_min, accept_max]
+accept_max = 0.5
+
+[validation]
+# True parameter values of the simulated data set (rounded maximum-likelihood fit on the real data)
+mu = 0.001
+sigma = 0.007
+nu = 2.5
