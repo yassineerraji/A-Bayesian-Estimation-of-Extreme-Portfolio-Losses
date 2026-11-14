@@ -29,6 +29,7 @@ Each notebook uses a fixed seed, so it reproduces the numbers of the report exac
 | `03_validation.ipynb` | `tables/recovery.tex`, `figures/validation_diagnostics.pdf`, `tables/tuning.tex`, `figures/tuning.pdf`, `tables/coverage.tex`, `figures/coverage.pdf` | Sections 4–5 | **about 8 minutes** (300 fits) |
 | `04_posterior.ipynb` | `results/draws_student_t.npy`, `results/draws_gaussian.npy`, `tables/posterior.tex`, `figures/posterior.pdf`, `figures/posterior_diagnostics.pdf`, `figures/running_means.pdf` | Section 6.1 | about 20 seconds |
 | `05_risk.ipynb` | `tables/risk.tex`, `figures/risk.pdf`, `tables/rare_event.tex`, `figures/rare_event.pdf`, `tables/risk_mcse.tex` | Section 6.2 | about 10 seconds |
+| `06_checks.ipynb` | `tables/ppc.tex`, `figures/ppc.pdf`, `tables/exceedances.tex`, `figures/exceedances.pdf`, `tables/sensitivity.tex`, `tables/crosscheck.tex` | Sections 6.3–6.4 | about 40 seconds |
 
 ## Files
 

@@ -99,6 +99,7 @@ def latex_cell(value, fmt=None):
     text = text.replace("%", r"\%").replace("&", r"\&")
     if text.startswith("-") and text[1:2].isdigit():  # a negative number, as a number or as text
         text = "$-$" + text[1:]
+    text = text.replace("[-", "[$-$").replace(", -", ", $-$")  # negative ends of an interval "[a, b]"
     return text
 
 
@@ -536,18 +537,19 @@ def tail_gauss(theta, v):
 # losses, we average over the draws the exact probability and the exact mean beyond a level v:
 # the same target, with the noise of simulating the loss removed.
 # ======================================================================
-def predictive_var_es(theta_draws, alpha, model="student_t"):
+def predictive_var_es(theta_draws, alpha, model="student_t", weights=None):
     """VaR and ES at level alpha of the posterior predictive loss, a mixture over the posterior draws.
 
     theta_draws: posterior draws, last axis (mu, sigma, nu) for "student_t" or (mu, s) for "gaussian".
+    weights: optional normalized importance weights of the draws (equal weights if None).
     VaR solves mean_i P(L > VaR | theta_i) = 1 - alpha, and ES = mean_i E[L 1{L > VaR} | theta_i] / (1 - alpha).
     """
     theta = np.asarray(theta_draws).reshape(-1, np.shape(theta_draws)[-1])  # all draws in one list
     tail = tail_t if model == "student_t" else tail_gauss
 
     def excess_probability(v):
-        return tail(theta, v)[0].mean() - (1 - alpha)
+        return np.average(tail(theta, v)[0], weights=weights) - (1 - alpha)
 
     var = brentq(excess_probability, -1, 1)  # a daily log-loss lies well inside (-100%, +100%)
-    es = tail(theta, var)[1].mean() / (1 - alpha)
+    es = np.average(tail(theta, var)[1], weights=weights) / (1 - alpha)
     return var, es
