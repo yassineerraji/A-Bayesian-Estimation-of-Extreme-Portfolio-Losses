@@ -90,17 +90,17 @@ $^{2}$ CentraleSup\'elec \& ESSEC, France, simon.amar@student-cs.fr
 
 {\bf Keywords.} Bayesian inference; Metropolis--Hastings; importance sampling; heavy tails; Expected Shortfall.
 
-\bigskip
+\bigskip\bigskip
 
 %--------------------------------------------------------------------------
 \section{Introduction}\label{sec:introduction}
 %--------------------------------------------------------------------------
 
-Banks set their capital and risk limits from the worst days of their portfolio. With $y$ the daily log-return and $L = -y$ the one-day loss, the \emph{Value-at-Risk} at level $\alpha$ is the loss exceeded with probability $1-\alpha$, $\Pr(L > \VaR_\alpha) = 1-\alpha$, and the \emph{Expected Shortfall} is the average loss beyond it, $\ES_\alpha = \E[L \given L \ge \VaR_\alpha]$. ES also measures how bad the bad days are and is a coherent risk measure \cite{artzner1999coherent}; the Basel market-risk standard uses ES at 97.5\% \cite{bcbs2019market}.
+Banks set their capital and risk limits from the worst days of their portfolio. With $y$ the daily log-return and $L = -y$ the one-day loss, the \emph{Value-at-Risk} $\VaR_\alpha$ is the loss exceeded with probability $1-\alpha$, and the \emph{Expected Shortfall} $\ES_\alpha = \E[L \given L \ge \VaR_\alpha]$ is the average loss beyond it. ES is a coherent risk measure \cite{artzner1999coherent}, and the Basel market-risk standard uses it at 97.5\% \cite{bcbs2019market}.
 
-The convenient Gaussian assumption fails for daily returns, whose tails are much heavier \cite{mandelbrot1963variation}; the Student-$t$ distribution, whose degrees of freedom $\nu$ control the tail, is a classic alternative \cite{praetz1972distribution,blattberg1974comparison}. We ask: \emph{what are the one-day 99\% VaR and ES of the US stock market on a typical day of 2006--2025, with their uncertainty, and how much of the gap with the Gaussian answer comes from heavy tails and how much from not knowing the parameters?} This is the unconditional risk over the period, not the risk of tomorrow given today's market. The answer is uncertain because the tail is made of few days: in 20 years, about 50 days fall in the worst 1\% and 5 in the worst 0.1\%, so $\nu$ must be learned from little information. A Bayesian approach carries the uncertainty about $\nu$ into VaR and ES, and its posterior predictive distribution folds it into one risk figure.
+Daily returns have much heavier tails than a Gaussian \cite{mandelbrot1963variation}; the Student-$t$ distribution, whose degrees of freedom $\nu$ control the tail, is a classic alternative \cite{praetz1972distribution,blattberg1974comparison}. We ask: \emph{what are the one-day 99\% VaR and ES of the US stock market on a typical day of 2006--2025, with their uncertainty, and how much of the gap with the Gaussian answer comes from heavy tails and how much from not knowing the parameters?} This is the unconditional risk over the period, not tomorrow's risk given today's market. The answer is uncertain because the tail rests on few days (about 50 in the worst 1\% over 20 years, and 5 in the worst 0.1\%), so $\nu$ is learned from little information; a Bayesian approach carries this uncertainty into VaR and ES, and its predictive distribution folds it into one risk figure.
 
-We fit the Student-$t$ model and a Gaussian benchmark with our own Metropolis--Hastings sampler, compare their answers, and study how to compute the probability of rare losses, where plain Monte Carlo fails. \Cref{sec:data,sec:model,sec:method} present the data, model and method, \cref{sec:validation} validates the method, and \cref{sec:results,sec:discussion} give and discuss the results.
+We fit the Student-$t$ model and a Gaussian benchmark with our own Metropolis--Hastings sampler, and compare plain Monte Carlo with importance sampling for rare losses. We find very heavy tails ($\nu \approx 2.5$): the 99\% VaR (3.60\%) and ES (6.24\%) are 26\% and 90\% above the Gaussian answers, because of the tails rather than parameter uncertainty, and importance sampling is thousands of times more efficient than plain Monte Carlo for rare losses. \Cref{sec:data,sec:model,sec:method} present the data, model and method, \cref{sec:validation} validates the method, and \cref{sec:results,sec:discussion} give and discuss the results.
 
 %--------------------------------------------------------------------------
 \section{Data}\label{sec:data}
@@ -108,20 +108,28 @@ We fit the Student-$t$ model and a Gaussian benchmark with our own Metropolis--H
 
 We use the daily return of the US stock market from the Fama/French factors \cite{french2026library,fama1993common}: the value-weighted return of all US firms listed on the NYSE, AMEX and NASDAQ, built from CRSP. The market return of day $t$ is $R_t = \texttt{Mkt-RF}_t + \texttt{RF}_t$, which we convert to log-returns $y_t = \log(1 + R_t)$, $t = 1,\dots,n$, over 3 January 2006 -- 31 December 2025 ($n = 5{,}031$ trading days, no missing value).
 
-\Cref{fig:data} shows the two features that matter (summary in \cref{tab:data}). First, the tails are far heavier than Gaussian: 36 days lie more than 4 standard deviations from the mean, against 0.32 expected under a Gaussian with the same mean and standard deviation, and the worst day, 16 March 2020, lost 12.78\%. They are extreme only for a Gaussian: Chebyshev's inequality allows 314 for any finite variance \cite[Prelim., Thm.~2]{leite2026notes}. Second, volatility comes in waves (2008, 2020), a clustering that our model ignores (\cref{sec:discussion}).
+\Cref{fig:data} and \cref{tab:data} show the two features that matter. First, the tails are far heavier than Gaussian: 36 days lie more than 4 standard deviations from the mean, against 0.32 expected under a Gaussian with the same mean and standard deviation (Chebyshev's inequality would allow 314 for any finite variance), and the worst day, 16 March 2020, lost 12.78\%. Second, volatility comes in waves (2008, 2020), a clustering our model ignores (\cref{sec:discussion}).
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=\linewidth]{figures/data_overview.pdf}
-  \caption{Daily log-returns of the US market. (a) Over time: calm periods and crises (2008, 2020) alternate. (b) Histogram on a log scale against a Gaussian density with the same mean and standard deviation: the observed tails extend far beyond the Gaussian parabola.}
+  \includegraphics[width=0.85\linewidth]{figures/data_overview.pdf}
+  \caption{Daily log-returns of the US market: (a) over time, calm periods and crises (2008, 2020) alternate; (b) on a log scale, the observed tails extend far beyond a Gaussian with the same mean and standard deviation.}
   \label{fig:data}
 \end{figure}
+
+\begin{table}[h]
+  \centering
+  \caption{Summary of the data (returns in \%). Gaussian column: for the worst and best days, the level it reaches once in $n$ days; for the days beyond 4 standard deviations, the number it expects.}
+  \label{tab:data}
+  \footnotesize
+  \input{tables/data_summary}
+\end{table}
 
 %--------------------------------------------------------------------------
 \section{Model}\label{sec:model}
 %--------------------------------------------------------------------------
 
-\paragraph{Likelihood.} Given $\theta = (\mu, \sigma, \nu)$, the daily returns are independent Student-$t$ variables with location $\mu \in \mathbb{R}$, scale $\sigma > 0$ and $\nu > 2$ degrees of freedom (\cref{fig:dag}):
+\paragraph{Unknowns and likelihood.} The unknown parameters are $\theta = (\mu, \sigma, \nu)$; the model has no latent variables. Given $\theta$, the daily returns are independent Student-$t$ variables with location $\mu \in \mathbb{R}$, scale $\sigma > 0$ and $\nu > 2$ degrees of freedom (\cref{fig:dag}):
 \begin{equation}\label{eq:likelihood}
   p(\by \given \theta) = \prod_{t=1}^n \frac{\Gamma\left(\frac{\nu+1}{2}\right)}{\Gamma\left(\frac{\nu}{2}\right)\sqrt{\nu\pi}\,\sigma}\left[1 + \frac{1}{\nu}\left(\frac{y_t-\mu}{\sigma}\right)^2\right]^{-\frac{\nu+1}{2}}.
 \end{equation}
@@ -144,56 +152,58 @@ The density decays like $|y|^{-(\nu+1)}$: small $\nu$ means heavy tails, and $\n
   \label{fig:dag}
 \end{figure}
 
-\paragraph{Priors.} Independent and weakly informative, in daily units: $\mu \sim \mathcal N(0, 0.001^2)$ puts the daily location within $\pm 0.20\%$ with probability 0.95; $\sigma \sim \mathrm{HalfNormal}(0.02)$ puts 95\% of its mass below a 3.9\% daily scale, covering calm and crisis markets; $\nu - 2 \sim \mathrm{Exponential}$ with rate 0.1 (median $\nu$ of 8.9, $\Pr(\nu < 5) = 0.26$) lets the data choose between very heavy and nearly Gaussian tails, and $\nu > 2$ keeps the variance finite. A prior predictive simulation (\cref{tab:prior-predictive}) confirms that they are vague but sensible: they put the 99\% VaR between 0.19\% and 15.8\% with probability 0.95 (median 4.07\%, against 3.60\% in our data). The posterior is known up to its normalizing constant \cite[Def.~1.3]{leite2026notes},
+\paragraph{Priors.} Independent and weakly informative, in daily units: $\mu \sim \mathcal N(0, 0.001^2)$ puts the location within $\pm 0.20\%$ with probability 0.95; $\sigma \sim \mathrm{HalfNormal}(0.02)$ puts 95\% of its mass below 3.9\%, covering calm and crisis markets; $\nu - 2 \sim \mathrm{Exponential}$ with rate 0.1 (median $\nu$ of 8.9, $\Pr(\nu < 5) = 0.26$) lets the data choose between very heavy and nearly Gaussian tails, with $\nu > 2$ for a finite variance. A prior predictive simulation (\cref{tab:prior-predictive}) puts the 99\% VaR between 0.19\% and 15.8\% (median 4.07\%, against 3.60\% in our data): vague but sensible. By Bayes' theorem, the posterior is
 \begin{equation}\label{eq:posterior}
-  \pi(\theta\given\by) \propto \tilde\pi(\theta \given \by) = p(\by\given\theta)\,\pi(\mu)\,\pi(\sigma)\,\pi(\nu).
+  \pi(\theta\given\by) = \frac{p(\by\given\theta)\,\pi(\theta)}{p(\by)} \propto \tilde\pi(\theta \given \by) = p(\by\given\theta)\,\pi(\mu)\,\pi(\sigma)\,\pi(\nu),
 \end{equation}
+where the evidence $p(\by) = \int p(\by\given\theta)\,\pi(\theta)\,d\theta$ has no closed form; our sampler needs only $\tilde\pi$.
 
-\paragraph{Assumptions.} The days are independent and identically distributed over 20 years, and the tails are symmetric. Independence ignores volatility clustering, so our VaR describes a typical day of the period, not tomorrow given today.
+\paragraph{Assumptions.} The days are independent and identically distributed over 20 years, with symmetric tails: the standard unconditional model of daily returns, which matches our question (a typical day of the period) and whose three parameters are well identified by 5,031 days. It ignores volatility clustering, so it cannot describe tomorrow given today; \cref{sec:checks} measures what this misses.
 
 \paragraph{Risk measures.} For a given $\theta$, VaR and ES have closed forms (\cref{app:derivations}): with $q = t_\nu^{-1}(\alpha)$ the $\alpha$-quantile and $f_\nu$ the density of the standard Student-$t$,
 \begin{equation}\label{eq:var-es}
   \VaR_\alpha(\theta) = -\mu + \sigma q, \qquad
   \ES_\alpha(\theta) = -\mu + \sigma\,\frac{f_\nu(q)}{1-\alpha}\,\frac{\nu+q^2}{\nu-1}.
 \end{equation}
-Applied to each posterior draw, they give the posterior of VaR and ES \cite[Def.~1.4]{leite2026notes}. The \emph{predictive} VaR and ES are those of tomorrow's loss $\tilde L$ under $p(\tilde L\given\by) = \int p(\tilde L\given\theta)\,\pi(\theta\given\by)\,d\theta$, which folds parameter uncertainty into one number.
+Applied to each posterior draw, they give the posterior of VaR and ES; the \emph{predictive} VaR and ES, those of tomorrow's loss under $p(\tilde L\given\by) = \int p(\tilde L\given\theta)\,\pi(\theta\given\by)\,d\theta$, fold parameter uncertainty into one number.
 
-\paragraph{Gaussian benchmark.} The Gaussian model $y_t \sim \mathcal N(\mu, s^2)$ has the same priors on its location and scale, so the two models differ only in their tails. Comparing the two models measures the effect of the tails; comparing the predictive value with the \emph{plug-in} value, at the posterior mean of $\theta$, measures the effect of parameter uncertainty.
+\paragraph{Gaussian benchmark.} The Gaussian model $y_t \sim \mathcal N(\mu, s^2)$ has the same priors on location and scale, so the models differ only in their tails. Comparing the models measures the effect of the tails; comparing predictive and \emph{plug-in} values (at the posterior mean of $\theta$), the effect of parameter uncertainty.
 
 %--------------------------------------------------------------------------
 \section{Method}\label{sec:method}
 %--------------------------------------------------------------------------
 
-\paragraph{Sampler.} We sample the posterior on the unconstrained scale $\phi = (\mu, \eta, \lambda)$, with $\sigma = e^\eta$ and $\nu = 2 + e^\lambda$, by random-walk Metropolis--Hastings, so that every proposal is valid \cite{metropolis1953equation,hastings1970monte}. The change of variables adds the Jacobian $|d\sigma/d\eta|\,|d\nu/d\lambda| = \sigma(\nu-2)$ to the target \cite[Prop.~2.1]{leite2026notes}:
+\paragraph{Sampler.} The posterior has no standard form, and Metropolis--Hastings needs only the unnormalized $\tilde\pi$, which suits this smooth three-parameter posterior. We run a random walk on the unconstrained scale $\phi = (\mu, \eta, \lambda)$, with $\sigma = e^\eta$ and $\nu = 2 + e^\lambda$, so that every proposal is valid; the change of variables adds the Jacobian $\sigma(\nu-2)$ to the target:
 \begin{equation}\label{eq:target}
   \log\tilde\pi(\phi \given \by) = \log p(\by\given\theta) + \log\pi(\mu) + \log\pi(\sigma) + \log\pi(\nu) + \eta + \lambda .
 \end{equation}
-\Cref{alg:mh} is the course's Algorithm~4 \cite{leite2026notes} with a symmetric Gaussian proposal: the acceptance probability is a ratio of unnormalized posteriors, computed on the log scale to avoid underflow.
+\Cref{alg:mh} uses a symmetric Gaussian proposal, so the acceptance probability is a ratio of unnormalized posteriors, computed on the log scale to avoid underflow.
 
 \begin{algorithm}[t]
   \caption{Random-walk Metropolis--Hastings on $\phi$ (one chain of $N$ iterations; $LL^\top$ is the proposal covariance)}
   \label{alg:mh}
   \For{$t = 1, \dots, N$}{
     draw $\varepsilon \sim \mathcal N(0, I_3)$ and $U \sim \mathcal U(0,1)$; set $\phi' = \phi^{(t-1)} + L\varepsilon$\;
-    \eIf{$\log U < \log\tilde\pi(\phi' \given \by) - \log\tilde\pi(\phi^{(t-1)} \given \by)$}{$\phi^{(t)} \gets \phi'$ \tcp*{accept}}{$\phi^{(t)} \gets \phi^{(t-1)}$ \tcp*{reject: the current value is recorded again}}
+    \lIf{$\log U < \log\tilde\pi(\phi' \given \by) - \log\tilde\pi(\phi^{(t-1)} \given \by)$}{$\phi^{(t)} \gets \phi'$ \tcp*{accept}}
+    \lElse{$\phi^{(t)} \gets \phi^{(t-1)}$ \tcp*{reject: the current value is recorded again}}
   }
 \end{algorithm}
 
-\paragraph{Tuning.} Following the course recipe \cite[Sec.~6.5]{leite2026notes}, we start from the posterior mode (MAP) with the Laplace covariance, computed by finite differences; three pilot runs of 5,000 iterations re-estimate the posterior covariance $\hat\Sigma$, and the proposal $\mathcal N(0, (2.38^2/3)\,\hat\Sigma)$ \cite{roberts1997weak} is then frozen. Four chains of 20,000 iterations start 5 posterior standard deviations from the MAP in random directions; a burn-in of 2,000 leaves 72,000 draws. A tuning study confirms this choice (\cref{tab:tuning,fig:tuning}): among steps scaled by 0.1 to 5, ours gives the most effective draws, 86 per 1,000 iterations for the slowest parameter (acceptance 0.31), and ignoring the posterior correlation of 0.61 between $\eta$ and $\lambda$ costs a quarter of them. An independence sampler with a Student-$t_4$ proposal at the MAP \cite[Sec.~6.3]{leite2026notes} is five times more efficient on this nearly Gaussian posterior; we keep the random walk, which needs only local information and leaves our importance-sampling cross-check (\cref{sec:sensitivity}) independent.
+\paragraph{Tuning.} We start from the posterior mode (MAP) with the Laplace covariance (finite differences); three pilot runs of 5,000 iterations re-estimate the posterior covariance $\hat\Sigma$, and the proposal $\mathcal N(0, (2.38^2/3)\,\hat\Sigma)$ \cite{roberts1997weak} is then frozen. Four chains of 20,000 iterations start 5 posterior standard deviations from the MAP; a burn-in of 2,000 leaves 72,000 draws. A tuning study (\cref{tab:tuning,fig:tuning}) confirms the choice: among steps scaled by 0.1 to 5, ours is the most efficient (86 effective draws per 1,000 iterations, acceptance 0.31), and ignoring the correlation of 0.61 between $\eta$ and $\lambda$ costs a quarter of it. An independence sampler at the MAP is five times more efficient here, but we keep the random walk, which needs only local information.
 
-\paragraph{Diagnostics and Monte Carlo error.} Each fit must pass three targets \cite[App.~C.4]{leite2026notes}: split-$\hat R < 1.01$ \cite{gelman1992inference,vehtari2021rank}, an effective sample size $\mathrm{ESS} = N/\tau \ge 1{,}000$ with $\tau = 1 + 2\sum_k \rho_k$ summed up to the first negative autocorrelation, and an acceptance rate in $[0.2, 0.5]$. Posterior means come with their Monte Carlo standard error $\hat{s}/\sqrt{\mathrm{ESS}}$, quantiles and predictive values with a batch-means error, over 10 batches per chain, far longer than $\tau$ \cite{flegal2010batch}.
+\paragraph{Diagnostics.} Each fit must pass three targets: split-$\hat R < 1.01$ \cite{vehtari2021rank}, $\mathrm{ESS} = N/\tau \ge 1{,}000$ with $\tau = 1 + 2\sum_k \rho_k$ (summed up to the first negative autocorrelation), and an acceptance rate in $[0.2, 0.5]$. Monte Carlo errors are $\hat{s}/\sqrt{\mathrm{ESS}}$ for means, and batch means (10 batches per chain) for quantiles and predictive values.
 
-\paragraph{Two exact answers.} We first test the sampler where the answer is known (\cref{tab:known,fig:known}). On the prior alone, which checks the change of scale and the Jacobian, our draws match 15 exact quantiles within 0.027 prior standard deviations. On a conjugate model fitted to the real data (Gaussian returns with a known variance), the posterior mean lies 0.44 Monte Carlo errors from the exact one and $\Pr(\mu > 0 \given \by) = 0.9909$, against an exact 0.9907.
+\paragraph{Two exact answers.} On the prior alone, which checks the change of scale and the Jacobian, our draws match 15 exact quantiles within 0.027 prior standard deviations; on a conjugate model fitted to the real data (Gaussian returns with known variance), the posterior mean lies 0.44 Monte Carlo errors from the exact one, and $\Pr(\mu > 0 \given \by) = 0.9909$ against 0.9907 (\cref{tab:known,fig:known}).
 
-\paragraph{Predictive VaR and ES.} The predictive loss is a mixture over the posterior draws $\theta^{(i)}$. Rather than simulating losses, we average exact conditional quantities, a Rao--Blackwellization \cite[Prop.~3.4]{leite2026notes}: the predictive VaR $v$ solves $\frac1N\sum_i \Pr(\tilde L > v \given \theta^{(i)}) = 1-\alpha$, and the predictive ES is $\frac{1}{1-\alpha}\frac1N\sum_i \E[\tilde L\,\mathbf 1\{\tilde L > v\} \given \theta^{(i)}]$, both in closed form (\cref{app:derivations}).
+\paragraph{Predictive VaR and ES.} The predictive loss is a mixture over the posterior draws. Rather than simulating losses, we average the exact tail probability and tail mean of each draw, a Rao--Blackwellization (\cref{app:derivations}).
 
-\paragraph{Implementation.} Samplers, diagnostics and risk computations are our own code (\cref{app:code}); libraries serve only for random numbers, distributions, optimization and plots.
+\paragraph{Implementation.} Samplers, diagnostics and risk computations are our own Python code (\cref{app:code}); NumPy, SciPy, pandas and Matplotlib serve only for random numbers, distributions, optimization, data handling and plots.
 
 %--------------------------------------------------------------------------
 \section{Validation on simulated data}\label{sec:validation}
 %--------------------------------------------------------------------------
 
-\paragraph{One simulated data set.} We simulate $n = 5{,}031$ days with $\mu = 0.1\%$, $\sigma = 0.7\%$ and $\nu = 2.5$, the rounded maximum-likelihood estimate on the real data, where the real posterior lives. All seven true values, the three parameters and VaR and ES at 99\% and 99.9\%, lie inside their 95\% intervals, and all targets are met (\cref{tab:recovery}). Chains started far apart merge within about 100 iterations, long before the burn-in ends (\cref{fig:validation}).
+\paragraph{One simulated data set.} We simulate $n = 5{,}031$ days with $\mu = 0.1\%$, $\sigma = 0.7\%$ and $\nu = 2.5$, the rounded maximum-likelihood estimate on the real data. All seven true values (the parameters, and VaR and ES at 99\% and 99.9\%) lie inside their 95\% intervals, all targets are met (\cref{tab:recovery}), and chains started far apart merge within about 100 iterations (\cref{fig:validation}).
 
 \begin{table}[t]
   \centering
@@ -203,11 +213,11 @@ Applied to each posterior draw, they give the posterior of VaR and ES \cite[Def.
   \input{tables/recovery}
 \end{table}
 
-\paragraph{Coverage.} We repeat the whole fit on 100 simulated data sets in each of three tail regimes, $\nu \in \{2.5, 4, 8\}$, with lighter settings (pilot runs of 2,000 iterations, chains of 6,000). All 300 fits pass the convergence targets, and 20 of the 21 coverages lie in the range expected for a calibrated 95\% interval, 90--99\% (\cref{tab:coverage}); the exception, $\sigma$ at $\nu = 4$ with 89\%, is one point below, and a calibrated method shows at least one such exception among 21 coverages with probability 0.31. Standardized errors (truth minus posterior mean, over posterior sd) average $-0.27$ to $0.23$, with sd 0.88 to 1.14: no material bias, and intervals of the right width. The intervals of VaR and ES, the quantities we report, are calibrated in every regime (94--98\%).
+\paragraph{Coverage.} We repeat the fit on 100 simulated data sets in each of three tail regimes, $\nu \in \{2.5, 4, 8\}$, with lighter settings (pilot runs of 2,000 iterations, chains of 6,000). All 300 fits converge, and 20 of the 21 coverages lie in the range of a calibrated 95\% interval, 90--99\% (\cref{tab:coverage,fig:coverage}); the exception, $\sigma$ at $\nu = 4$ with 89\%, is one that a calibrated method shows with probability 0.31 among 21 coverages. Standardized errors (truth minus posterior mean, over posterior sd) average $-0.27$ to $0.23$, with sd 0.88 to 1.14: no material bias, and intervals of the right width. VaR and ES are calibrated in every regime (94--98\%).
 
 \begin{table}[t]
   \centering
-  \caption{Coverage (\%) of the 95\% posterior intervals over 100 simulated data sets per tail regime ($\mu = 0.1\%$, $\sigma = 0.7\%$, real data size), and the number of fits passing the convergence targets. A calibrated interval gives 90--99\%.}
+  \caption{Coverage (\%) of the 95\% intervals over 100 simulated data sets per regime ($\mu = 0.1\%$, $\sigma = 0.7\%$), and fits passing the convergence targets; a calibrated interval gives 90--99\%.}
   \label{tab:coverage}
   \footnotesize
   \setlength{\tabcolsep}{4pt}
@@ -220,18 +230,27 @@ Applied to each posterior draw, they give the posterior of VaR and ES \cite[Def.
 
 \subsection{Diagnostics and posterior}\label{sec:posterior}
 
-Both models pass every target on the real data (\cref{tab:posterior}; traces in \cref{fig:real-diagnostics}). The tail is very heavy: $\nu = 2.48$ [2.27, 2.70], clear of the bound $\nu = 2$, and all 72,000 draws have $\nu < 3$, so the skewness and the kurtosis of daily returns are infinite under the model. The posterior means lie within 0.12 posterior standard deviations of the maximum-likelihood estimates, so the priors barely matter. The numbers are stable: the running means settle (\cref{fig:running}), a second seed reproduces the posterior means within 0.5 Monte Carlo errors, and the independence sampler reaches the same means and intervals to the third decimal.
+\begin{table}[t]
+  \centering
+  \caption{Posterior summaries and diagnostics on the real data. Implied sd of the Student-$t$: $\sigma\sqrt{\nu/(\nu-2)}$; MCSE: Monte Carlo standard error of the mean, $\mathrm{sd}/\sqrt{\mathrm{ESS}}$.}
+  \label{tab:posterior}
+  \footnotesize
+  \input{tables/posterior}
+\end{table}
 
 
-Two differences with the raw data need an explanation (\cref{fig:posterior}). The Student-$t$ location (0.096\%) lies near the sample median (0.080\%), above the sample mean (0.042\%), which a few large losses pull down: an asymmetry our symmetric model ignores. The implied standard deviation, 1.58\% [1.37, 1.92], is 27\% above the sample value of 1.25\%, which the Gaussian reproduces. With $\nu$ near 2.5, the sample standard deviation converges slowly and usually falls short of the true one \cite[Sec.~3.3.3]{leite2026notes}: in 1,000 data sets simulated from the fit, it does in 81\% of the cases, by 9\% at the median. But our shortfall, 20\%, is reached by only 1.7\% of them: the model expects even more extreme days than our data contain, a first sign that its far tail may be too heavy (\cref{sec:checks}).
+Both models pass every target on the real data (\cref{tab:posterior}; traces in \cref{fig:real-diagnostics}): $\hat R \le 1.0012$, $\mathrm{ESS} \ge 5{,}970$, acceptance 0.31 (Student-$t$) and 0.35 (Gaussian), and Monte Carlo errors of at most 0.002. The tail is very heavy: $\nu = 2.48$ [2.27, 2.70], clear of the bound $\nu = 2$, and all 72,000 draws have $\nu < 3$, so the skewness and kurtosis of returns are infinite under the model. The posterior means lie within 0.12 posterior standard deviations of the maximum-likelihood estimates, and they are stable: the running means settle (\cref{fig:running}), a second seed agrees within 0.5 Monte Carlo errors, and the independence sampler to the third decimal.
+
+
+Two differences with the raw data need an explanation (\cref{fig:posterior}). The Student-$t$ location lies near the sample median (0.080\%), above the mean (0.042\%), which a few large losses pull down: an asymmetry our symmetric model ignores. The implied standard deviation is 27\% above the sample value of 1.25\%; with $\nu$ near 2.5 the sample standard deviation usually falls short (in 81\% of 1,000 data sets simulated from the fit, by 9\% at the median), but a 20\% shortfall like ours occurs in only 1.7\% of them: a first sign that the model's far tail may be too heavy.
 
 \subsection{Value-at-Risk and Expected Shortfall}
 
-\Cref{tab:risk,fig:risk} answer the question. At 97.5\%, both models give almost the same VaR (2.36\% and 2.40\%); from 99\% on they part. The Student-$t$ 99\% VaR is 3.60\% [3.36, 3.87], 26\% above the Gaussian 2.86\% and equal to the historical value (3.60\%). The 99\% ES is 6.24\% [5.54, 7.07], against 3.28\%. At 99.9\%, the Student-$t$ ES is 3.9 times the Gaussian one. Parameter uncertainty widens the intervals (the 99.9\% ES lies between 13.3\% and 19.8\%) but barely moves the predictive values, by 0.2\% at the 99\% VaR and 1.5\% at the 99.9\% ES. Monte Carlo errors stay below 0.07 percentage points (\cref{tab:mcse}).
+\Cref{tab:risk,fig:risk} answer the question. At 97.5\%, both models give almost the same VaR (2.36\% and 2.40\%); from 99\% on they part. The Student-$t$ 99\% VaR, 3.60\% [3.36, 3.87], is 26\% above the Gaussian and equal to the historical value; the 99\% ES, 6.24\% [5.54, 7.07], is 90\% above the Gaussian 3.28\%, and the 99.9\% ES 3.9 times the Gaussian one. Parameter uncertainty widens the intervals but moves the predictive values by at most 1.5\%. Monte Carlo errors stay below 0.07 points (\cref{tab:mcse}).
 
 \begin{table}[t]
   \centering
-  \caption{One-day VaR and ES (loss in \%) of the US market. Gaussian and Student-$t$: predictive values; 95\% interval: posterior of $\VaR_\alpha(\theta)$ or $\ES_\alpha(\theta)$; historical: empirical quantile and tail mean of the observed losses. Tail effect: Student-$t$ against Gaussian; uncertainty effect: predictive against plug-in Student-$t$.}
+  \caption{One-day VaR and ES (loss in \%). Gaussian, Student-$t$: predictive values; 95\% interval: posterior of $\VaR_\alpha(\theta)$ or $\ES_\alpha(\theta)$; historical: empirical values. Tail effect: Student-$t$ against Gaussian; uncertainty: predictive against plug-in.}
   \label{tab:risk}
   \footnotesize
   \setlength{\tabcolsep}{3.5pt}
@@ -241,28 +260,28 @@ Two differences with the raw data need an explanation (\cref{fig:posterior}). Th
 
 \subsection{Rare losses: plain Monte Carlo against importance sampling}\label{sec:rare}
 
-How likely is a one-day loss beyond $x$? We estimate the predictive probability $p(x) = \Pr(\tilde L > x \given \by)$ in three ways, each with $N = 10{,}000$ posterior draws, repeated 500 times (\cref{tab:rare,fig:rare}). \emph{Plain Monte Carlo} draws a loss from the model for each $\theta$ and counts the losses beyond $x$; its relative error is $\sqrt{(1-p)/(Np)}$ \cite[Prop.~3.1]{leite2026notes}. \emph{Importance sampling} draws the loss from a proposal that lives on the event \cite[Sec.~3.4.1]{leite2026notes}, a Pareto density $g(L) = a x^a/L^{a+1}$ on $(x, \infty)$, and weights it by $f_\theta(L)/g(L)$. Our target has a polynomial tail, $f_\theta(L) \propto L^{-(\nu+1)}$: an exponential proposal, as in the course example, would have lighter tails and unbounded weights, hence an infinite variance \cite[Prop.~3.2]{leite2026notes}, whereas the Pareto with $a = 2 \le \nu$ keeps them bounded (\cref{app:derivations}). \emph{Rao--Blackwellization} averages the exact $\Pr(\tilde L > x \given \theta)$ and removes the simulation of the loss altogether.
+How likely is a one-day loss beyond $x$? We estimate $p(x) = \Pr(\tilde L > x \given \by)$ in three ways, each with $N = 10{,}000$ posterior draws, repeated 500 times (\cref{fig:rare,tab:rare}). \emph{Plain Monte Carlo} counts simulated losses beyond $x$, with relative error $\sqrt{(1-p)/(Np)}$. \emph{Importance sampling} draws the loss from a Pareto density $g(L) = a x^a/L^{a+1}$ on $(x, \infty)$ and weights it by $f_\theta(L)/g(L)$; our target has a polynomial tail, $f_\theta(L) \propto L^{-(\nu+1)}$, so an exponential proposal would give unbounded weights and an infinite variance, while the Pareto with $a = 2 \le \nu$ keeps them bounded (\cref{app:derivations}). \emph{Rao--Blackwellization} averages the exact $\Pr(\tilde L > x \given \theta)$.
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.88\linewidth]{figures/rare_event.pdf}
-  \caption{Rare losses: (a) running estimate of the probability of a loss beyond 10\% for one run of each estimator: plain Monte Carlo stays at zero, then jumps at each rare hit; (b) relative error of each estimator against the loss threshold, with $N = 10{,}000$ draws.}
+  \includegraphics[width=0.8\linewidth]{figures/rare_event.pdf}
+  \caption{Rare losses: (a) running estimate of $p(10\%)$, one run per estimator: plain Monte Carlo stays at zero, then jumps at each rare hit; (b) relative error against the threshold ($N = 10{,}000$).}
   \label{fig:rare}
 \end{figure}
 
-Plain Monte Carlo fails exactly where risk lives: its relative error grows from 14\% for a loss beyond 5\% to 75\% beyond 20\%, as the formula predicts, and one run in five sees no loss beyond 20\% and reports a probability of zero; it would need about two million draws to know $p(20\%)$ within $\pm 10\%$. Importance sampling cuts the error to 0.2--0.3\%, an efficiency gain of about 5,000 to 60,000, with well-behaved weights (effective sample size above 9,000 of 10,000). Rao--Blackwellization does slightly better because the conditional tail probability has a closed form here; importance sampling is the general tool when it does not. Under our model, a loss beyond 10\% happens about once every four to five years ($p = 9.0 \times 10^{-4}$), and a crash beyond 20\% about once in 24 years ($1.7 \times 10^{-4}$). For the 99.9\% ES (\cref{tab:rare-es}), simulation confirms our 16.24\%: plain Monte Carlo errs by 40\% and cannot even estimate its own error (0.53 to 1.59 times the true one across runs, \cite[Rem.~3.1]{leite2026notes}), while a Pareto of index $\nu - 1 \approx 1.5$, near the optimal $g \propto |h|f$ \cite[Prop.~3.3]{leite2026notes}, reaches 0.24\%.
+Plain Monte Carlo fails where risk lives: its relative error grows from 14\% (loss beyond 5\%) to 75\% (beyond 20\%), as the formula predicts, one run in five reports a probability of zero, and about two million draws would be needed for $\pm 10\%$ on $p(20\%)$. Importance sampling cuts the error to 0.2--0.3\% (gains of about 5,000 to 60,000; weight ESS above 9,000 of 10,000), and Rao--Blackwellization does slightly better thanks to a closed form, which importance sampling does not need. Under our model, a loss beyond 10\% happens about once every four to five years ($p = 9.0 \times 10^{-4}$), and beyond 20\% once in 24 years ($1.7 \times 10^{-4}$). For the 99.9\% ES (\cref{tab:rare-es}), simulation confirms our 16.24\%: plain Monte Carlo errs by 40\% and cannot even estimate its own error (0.53 to 1.59 times the true one across runs), while a Pareto of index $\nu - 1 \approx 1.5$, near the optimal $g \propto |h|f$, reaches 0.24\%.
 
 \subsection{Model checking}\label{sec:checks}
 
-\Cref{tab:ppc} compares the data with 1,000 data sets replicated from each posterior \cite{gelman1996posterior}; a $p$-value near 0 or 1 flags a feature the model misses \cite[App.~C.4]{leite2026notes}. The Gaussian model fails every tail statistic: its replicates have 0 or 1 day with a loss above 5\%, against 21 observed. The Student-$t$ reproduces the 1\% quantile ($p = 0.55$) and the number of large losses ($p = 0.68$). Its far tail, however, is likely too heavy: its replicated worst days range from $-90.9\%$ to $-10.4\%$, so the observed $-12.8\%$ sits on the mild side ($p = 0.11$), and its replicated standard deviations are mostly above ours ($p = 0.96$); each signal is weak alone, but they agree with the standard-deviation shortfall of \cref{sec:posterior}. The mild asymmetry of the data is borderline for the Student-$t$ ($p = 0.96$) and missed by the Gaussian, and both models miss volatility clustering: the autocorrelation of $|y_t|$ is 0.31 in the data and near 0 in every replicate.
+\Cref{tab:ppc} compares the data with 1,000 data sets replicated from each posterior; a $p$-value near 0 or 1 flags a missed feature. The Gaussian fails every tail statistic (0 or 1 replicated day with a loss above 5\%, against 21 observed). The Student-$t$ reproduces the 1\% quantile ($p = 0.55$) and the number of large losses ($p = 0.68$), but its far tail is likely too heavy: its replicated worst days range from $-90.9\%$ to $-10.4\%$, leaving the observed $-12.8\%$ on the mild side ($p = 0.11$), and its replicated standard deviations are mostly above ours ($p = 0.96$), signals weak alone but consistent with \cref{sec:posterior}. The mild asymmetry is borderline for the Student-$t$ ($p = 0.96$), and both models miss volatility clustering: the autocorrelation of $|y_t|$ is 0.31 in the data and near 0 in every replicate.
 
 
-The VaR exceedances tell the same story (\cref{tab:exceedances}). At 99\%, the Student-$t$ VaR is beaten on 51 days against 50 expected, the Gaussian on 105; at 99.9\%, 2 times against 5 (conservative) and 46 times; at 97.5\%, both too often (161 and 156 against 126). As the binomial range assumes independent days, these counts check the VaR only on average over the window. A single Student-$t$ fitted to calm and crisis periods together is a compromise: too low at 97.5\%, right on average at 99\%, conservative at 99.9\%. The exceedances also bunch in 2008--2009 and 2020 (\cref{fig:exceedances}).
+The VaR exceedances agree (\cref{tab:exceedances}). The Student-$t$ VaR is beaten on 51 days at 99\% (50 expected) and 2 at 99.9\% (5 expected), the Gaussian on 105 and 46; at 97.5\%, both are beaten too often (161 and 156 against 126). These counts assume independent days, so they check the VaR only on average. One Student-$t$ for calm and crisis periods is a compromise: too low at 97.5\%, right on average at 99\%, conservative at 99.9\%; and the exceedances bunch in 2008--2009 and 2020 (\cref{fig:exceedances}).
 
 
 \subsection{Sensitivity and cross-check}\label{sec:sensitivity}
 
-The priors do not matter (\cref{tab:sensitivity}): other priors on $\nu$, $\mu$ (including our pitch's) and $\sigma$, and the bound $\nu > 1$, change $\nu$ by less than 0.01 and every risk measure by at most 0.3\%. The data window matters more: on 2016--2025 alone, $\nu = 2.68$ and the 99\% VaR is 3.25\% instead of 3.60\%. Finally, self-normalized importance sampling of the posterior, with 50,000 draws from the Student-$t_4$ proposal at the MAP \cite[Ex.~3.4, Def.~3.3]{leite2026notes}, has a weight efficiency of 82\% and reproduces every posterior mean within one combined Monte Carlo error, and every interval and predictive risk measure within 0.13\% (\cref{tab:crosscheck}): three different algorithms agree.
+The priors do not matter (\cref{tab:sensitivity}): other priors on $\nu$, $\mu$ (including our pitch's) and $\sigma$, and the bound $\nu > 1$, change $\nu$ by less than 0.01 and every risk measure by at most 0.3\%. The window matters more: on 2016--2025, $\nu = 2.68$ and the 99\% VaR is 3.25\%. Self-normalized importance sampling of the posterior (50,000 draws, weight efficiency 82\%) reproduces every posterior mean within one combined Monte Carlo error, and every interval and predictive risk measure within 0.13\% (\cref{tab:crosscheck}).
 
 %--------------------------------------------------------------------------
 \section{Discussion and conclusion}\label{sec:discussion}
@@ -270,7 +289,7 @@ The priors do not matter (\cref{tab:sensitivity}): other priors on $\nu$, $\mu$ 
 
 \paragraph{Answer.} Over 2006--2025, a one-day loss of the US stock market above 3.60\% happens on about 1 trading day in 100; with 95\% probability this threshold lies between 3.36\% and 3.87\%. On those days, the average loss is about 6.2\%. A Gaussian model understates them by 21\% and 47\%, and the 99.9\% ES by 74\%: the heavy tail, not parameter uncertainty, makes the difference.
 
-\paragraph{Limitations and next steps.} The model ignores volatility clustering: pooling calm and crisis periods into one Student-$t$ makes it right on average at 99\% but too low at 97.5\% and conservative at 99.9\%. Our credible intervals hold only under independence, so they are too narrow: clustered days carry less information than independent ones, and the 2016--2025 window alone gives a 99\% VaR of 3.25\%, outside the interval [3.36, 3.87]. The model is also symmetric and checked in-sample only. Next steps: a GARCH model with Student-$t$ errors \cite{bollerslev1986generalized}, a skewed tail, an out-of-sample backtest and simulation-based calibration \cite{talts2018validating}.
+\paragraph{Limitations and next steps.} The model ignores volatility clustering: one Student-$t$ for calm and crisis periods is right on average at 99\% but too low at 97.5\% and conservative at 99.9\%. Its credible intervals hold only under independence and are too narrow: clustered days carry less information, and the 2016--2025 window alone gives a 99\% VaR of 3.25\%, outside [3.36, 3.87]. The model is also symmetric and checked in-sample only. Next steps: a GARCH model with Student-$t$ errors \cite{bollerslev1986generalized}, a skewed tail, an out-of-sample backtest and simulation-based calibration.
 
 %--------------------------------------------------------------------------
 %  References (not counted in the 8 pages)
@@ -288,7 +307,7 @@ The priors do not matter (\cref{tab:sensitivity}): other priors on $\nu$, $\mu$ 
 
 \section{Derivations}\label{app:derivations}
 
-\paragraph{Jacobian.} With $\sigma = e^\eta$ and $\nu = 2 + e^\lambda$, the density of $\phi$ is $\pi(\theta(\phi))\,|\det J|$ with $|\det J| = e^{\eta} e^{\lambda} = \sigma(\nu-2)$ \cite[Prop.~2.1]{leite2026notes}, which adds $\eta + \lambda$ to the log target \eqref{eq:target}. Without it, the target on the prior alone would not even be integrable: it tends to a constant as $\eta \to -\infty$.
+\paragraph{Jacobian.} With $\sigma = e^\eta$ and $\nu = 2 + e^\lambda$, the density of $\phi$ is $\pi(\theta(\phi))\,|\det J|$ with $|\det J| = e^{\eta} e^{\lambda} = \sigma(\nu-2)$, which adds $\eta + \lambda$ to the log target \eqref{eq:target}. Without it, the target on the prior alone would not even be integrable: it tends to a constant as $\eta \to -\infty$.
 
 \paragraph{Tail expectation of the Student-$t$.} For a standard Student-$t$ variable $Z$ with density $f_\nu$, $f_\nu'(z) = -\frac{(\nu+1)z}{\nu+z^2} f_\nu(z)$, so $\frac{d}{dz}\left[-f_\nu(z)\frac{\nu+z^2}{\nu-1}\right] = z f_\nu(z)$, and for $\nu > 1$
 \[
@@ -296,9 +315,9 @@ The priors do not matter (\cref{tab:sensitivity}): other priors on $\nu$, $\mu$ 
 \]
 The loss is $L = -\mu + \sigma Z'$ with $Z' = -Z$, also standard Student-$t$. Hence $\Pr(L > v) = \Pr(Z' > c)$ and $\E[L\,\mathbf 1\{L > v\}] = -\mu\Pr(Z' > c) + \sigma\,\E[Z'\,\mathbf 1\{Z' > c\}]$, with $c = (v+\mu)/\sigma$. With $v = \VaR_\alpha(\theta)$, $c = q$ and $\Pr(L > v) = 1-\alpha$, and dividing by $1-\alpha$ gives the ES of \eqref{eq:var-es}. For the Gaussian model, $\E[Z\,\mathbf 1\{Z > c\}] = \varphi(c)$.
 
-\paragraph{Predictive VaR and ES.} The predictive loss is the mixture $\frac1N\sum_i p(\tilde L\given\theta^{(i)})$ over the posterior draws. Its exceedance probability $\frac1N\sum_i \Pr(\tilde L > v \given \theta^{(i)})$ decreases in $v$, and the predictive VaR is its root at $1-\alpha$, found by bisection-type root finding. The predictive ES is $\frac{1}{1-\alpha}\frac1N\sum_i \E[\tilde L\,\mathbf 1\{\tilde L > v\} \given \theta^{(i)}]$, with each term in closed form as above. Averaging these exact conditional quantities instead of simulated losses removes the simulation noise of the losses (law of total variance, \cite[Prop.~3.4]{leite2026notes}).
+\paragraph{Predictive VaR and ES.} The predictive loss is the mixture $\frac1N\sum_i p(\tilde L\given\theta^{(i)})$ over the posterior draws. Its exceedance probability $\frac1N\sum_i \Pr(\tilde L > v \given \theta^{(i)})$ decreases in $v$, and the predictive VaR is its root at $1-\alpha$, found by bisection-type root finding. The predictive ES is $\frac{1}{1-\alpha}\frac1N\sum_i \E[\tilde L\,\mathbf 1\{\tilde L > v\} \given \theta^{(i)}]$, with each term in closed form as above. Averaging these exact conditional quantities instead of simulated losses removes the simulation noise of the losses (law of total variance).
 
-\paragraph{Importance weights for the rare event.} With the Pareto proposal $g(L) = a x^a / L^{a+1}$ on $(x, \infty)$, every draw lies beyond $x$, so $\hat p(x) = \frac1N\sum_i f_{\theta^{(i)}}(L_i)/g(L_i)$, which is unbiased by the importance sampling identity \cite[Prop.~3.2]{leite2026notes}. As $L \to \infty$, the weight behaves like $L^{-(\nu+1)}/L^{-(a+1)} = L^{a - \nu}$, bounded when $a \le \nu$; an exponential proposal $e^{-L/b}$ would give weights growing like $L^{-(\nu+1)} e^{L/b}$, without bound.
+\paragraph{Importance weights for the rare event.} With the Pareto proposal $g(L) = a x^a / L^{a+1}$ on $(x, \infty)$, every draw lies beyond $x$, so $\hat p(x) = \frac1N\sum_i f_{\theta^{(i)}}(L_i)/g(L_i)$, which is unbiased by the importance sampling identity. As $L \to \infty$, the weight behaves like $L^{-(\nu+1)}/L^{-(a+1)} = L^{a - \nu}$, bounded when $a \le \nu$; an exponential proposal $e^{-L/b}$ would give weights growing like $L^{-(\nu+1)} e^{L/b}$, without bound.
 
 \section{Code}\label{app:code}
 
@@ -307,13 +326,6 @@ The code is in \texttt{code/}, and \texttt{code/README.md} lists which notebook 
 \clearpage
 \section{Additional tables and figures}\label{app:tables}
 
-\begin{table}[!htbp]
-  \centering
-  \caption{Summary of the data (returns in \%; the source rounds returns to 0.01\%). For the worst and best days, the Gaussian reference is the level it reaches once in $n$ days; for the days beyond 4 standard deviations, the number it expects.}
-  \label{tab:data}
-  \small
-  \input{tables/data_summary}
-\end{table}
 
 \begin{table}[!htbp]
   \centering
@@ -370,7 +382,7 @@ The code is in \texttt{code/}, and \texttt{code/README.md} lists which notebook 
 \begin{figure}[!htbp]
   \centering
   \includegraphics[width=\linewidth]{figures/posterior_diagnostics.pdf}
-  \caption{Diagnostics of the Student-$t$ fit on the real data: first iterations from dispersed starts, traces after burn-in, and autocorrelations (one shade per chain).}
+  \caption{Diagnostics of the Student-$t$ fit on the real data: first iterations from dispersed starts, traces after burn-in, and autocorrelations (one shade per chain). The chains overlap after burn-in and their autocorrelations die out within about 20 lags.}
   \label{fig:real-diagnostics}
 \end{figure}
 
@@ -384,17 +396,10 @@ The code is in \texttt{code/}, and \texttt{code/README.md} lists which notebook 
 \begin{figure}[!htbp]
   \centering
   \includegraphics[width=\linewidth]{figures/posterior.pdf}
-  \caption{Posteriors on the real data: (a) location of both models, (b) scale and (c) tail of the Student-$t$, and (d) the standard deviation of both models (posterior mean and 95\% interval) against the sample standard deviation.}
+  \caption{Posteriors on the real data: (a) location of both models, (b) scale and (c) tail of the Student-$t$, and (d) the standard deviation of both models (posterior mean and 95\% interval) against the sample standard deviation. The Student-$t$ location lies above the Gaussian mean, and its implied standard deviation well above the sample value, which the Gaussian reproduces.}
   \label{fig:posterior}
 \end{figure}
 
-\begin{table}[!htbp]
-  \centering
-  \caption{Posterior summaries and diagnostics on the real data. Implied sd of the Student-$t$: $\sigma\sqrt{\nu/(\nu-2)}$; MCSE: Monte Carlo standard error of the mean, $\mathrm{sd}/\sqrt{\mathrm{ESS}}$.}
-  \label{tab:posterior}
-  \footnotesize
-  \input{tables/posterior}
-\end{table}
 
 \begin{figure}[!htbp]
   \centering
@@ -430,7 +435,7 @@ The code is in \texttt{code/}, and \texttt{code/README.md} lists which notebook 
 
 \begin{table}[!htbp]
   \centering
-  \caption{Probability of a one-day loss beyond 5\%, 10\% and 20\%: three estimators with $N = 10{,}000$ draws, repeated 500 times. Rel.\ RMSE: relative root-mean-square error against the exact $p$. Runs at 0: share of runs that see no loss beyond the threshold. Gain: variance of plain Monte Carlo over that of the estimator. Last column: draws needed for $\pm 10\%$ relative precision at 95\% \cite[eq.~(3.4)]{leite2026notes}.}
+  \caption{Probability of a one-day loss beyond 5\%, 10\% and 20\%: three estimators with $N = 10{,}000$ draws, repeated 500 times. Rel.\ RMSE: relative root-mean-square error against the exact $p$. Runs at 0: share of runs that see no loss beyond the threshold. Gain: variance of plain Monte Carlo over that of the estimator. Last column: draws needed for $\pm 10\%$ relative precision at 95\%.}
   \label{tab:rare}
   \footnotesize
   \setlength{\tabcolsep}{4pt}
