@@ -27,6 +27,7 @@ Each notebook uses a fixed seed, so it reproduces the numbers of the report exac
 | `01_data.ipynb` | `data/returns.csv`, `figures/data_overview.pdf`, `tables/data_summary.tex` | Section 2 | a few seconds |
 | `02_model_and_sampler.ipynb` | `tables/prior_predictive.tex`, `tables/known_answers.tex`, `figures/known_answers.pdf` | Sections 3–4 | about 10 seconds |
 | `03_validation.ipynb` | `tables/recovery.tex`, `figures/validation_diagnostics.pdf`, `tables/tuning.tex`, `figures/tuning.pdf`, `tables/coverage.tex`, `figures/coverage.pdf` | Sections 4–5 | **about 8 minutes** (300 fits) |
+| `04_posterior.ipynb` | `results/draws_student_t.npy`, `results/draws_gaussian.npy`, `tables/posterior.tex`, `figures/posterior.pdf`, `figures/posterior_diagnostics.pdf`, `figures/running_means.pdf` | Section 6.1 | about 20 seconds |
 
 ## Files
 
@@ -34,6 +35,7 @@ Each notebook uses a fixed seed, so it reproduces the numbers of the report exac
 |---|---|
 | `tools.py` | the functions shared by the notebooks: figure and table helpers, the Student-t model (likelihood, priors, Jacobian), our Metropolis–Hastings sampler and its tuning, the convergence diagnostics, and VaR/ES |
 | `data/` | the raw data snapshot and the daily log-returns |
+| `results/` | the posterior draws of both models (after burn-in), written by notebook 04 and read by notebooks 05 and 06 |
 
 Libraries: NumPy, SciPy, pandas and Matplotlib, plus Jupyter to run the notebooks. The sampler and all the diagnostics are our own code; no probabilistic-programming library is used.
 

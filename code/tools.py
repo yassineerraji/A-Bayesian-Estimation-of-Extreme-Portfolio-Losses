@@ -14,13 +14,15 @@ function is written once. The file grows with the project; its sections are:
         to_theta(phi), to_phi(theta)                    theta = (mu, sigma, nu) <-> sampling scale phi
         log_likelihood(theta, y)                        Student-t log-likelihood
         log_prior(phi), log_posterior(phi, y)           log prior (Jacobian included), log posterior
+        log_posterior_gauss(phi, y)                     log posterior of the Gaussian benchmark
 
-    Sampler (notebooks 02-03)
+    Sampler (notebooks 02-04)
         metropolis(log_target, phi0, L, n_iter, rng)    random-walk Metropolis-Hastings
         laplace_cov(log_target, mode)                   Laplace approximation of the covariance
         find_map(log_target, phi_start)                 the MAP and the Laplace covariance there
         run_chains(log_target, phi_start, rng)          our full recipe: MAP, pilot runs, 4 chains
         BURN_IN                                         iterations discarded at the start of a chain
+        independence_sampler(log_target, mode, cov, ...) MH with a fixed Student-t proposal
 
     Diagnostics (notebooks 02-03)
         autocorr(x, k), split_rhat(chains), ess(chains) autocorrelation, R-hat, effective sample size
@@ -187,6 +189,20 @@ def log_posterior(phi, y, prior=PRIOR):
     return log_likelihood(to_theta(phi, prior), y) + log_prior(phi, prior)
 
 
+# The Gaussian benchmark: y_t iid Normal(mu, s^2), with the same priors as the Student-t's mu and sigma
+# (mu ~ Normal(0, mu_sd^2), s ~ HalfNormal(sigma_scale)), so that the two models differ only in
+# their tails. It is sampled on phi = (mu, log s), with the Jacobian |ds / d log s| = s.
+def log_posterior_gauss(phi, y, prior=PRIOR):
+    """Unnormalized log posterior of the Gaussian model, phi = (mu, log s), Jacobian included."""
+    mu = phi[0]
+    s = np.exp(phi[1])
+    log_lik = -len(y) * np.log(s) - np.sum((y - mu) ** 2) / (2 * s**2)  # up to a constant
+    log_p_mu = -0.5 * (mu / prior["mu_sd"]) ** 2
+    log_p_s = -0.5 * (s / prior["sigma_scale"]) ** 2
+    log_jacobian = phi[1]  # log s
+    return log_lik + log_p_mu + log_p_s + log_jacobian
+
+
 # ----------------------------------------------------------------------
 # Sampler
 # ----------------------------------------------------------------------
@@ -298,6 +314,35 @@ def run_chains(log_target, phi_start, rng, n_chains=4, n_iter=20_000, n_pilot=5_
         start = mode + spread * np.linalg.cholesky(cov) @ rng.standard_normal(d)
         chains[c], accept_rates[c] = metropolis(log_target, start, L, n_iter, rng)
     return chains, accept_rates
+
+
+# ======================================================================
+# [COURSE] Independence sampler: Ch. 6, Sec. 6.3 (p. 70); its proposal, the Laplace approximation
+# with Student-t tails: Ch. 3, Example 3.4 (p. 45)
+# Proposals come from a fixed density g, so the acceptance probability min{1, pi~(phi') g(phi) /
+# (pi~(phi) g(phi'))} is the ratio of the importance weights w = pi~ / g of the two points.
+# ======================================================================
+def independence_sampler(log_target, mode, cov, n_iter, rng, df=4):
+    """Independence Metropolis-Hastings with a fixed Student-t proposal g centred at the MAP.
+
+    mode, cov: centre and scale matrix of g (the MAP and the Laplace covariance); df: its tails.
+    Returns the draws, shape (n_iter, d), and the acceptance rate.
+    """
+    g = stats.multivariate_t(loc=mode, shape=cov, df=df)
+    proposals = g.rvs(size=n_iter, random_state=rng)
+    log_g = g.logpdf(proposals)  # computed once for all proposals
+    phi = mode
+    log_w = log_target(mode) - g.logpdf(mode)
+    draws = np.empty((n_iter, len(mode)))
+    n_accepted = 0
+    for t in range(n_iter):
+        log_w_proposal = log_target(proposals[t]) - log_g[t]
+        if np.log(rng.uniform()) < log_w_proposal - log_w:  # accept
+            phi = proposals[t]
+            log_w = log_w_proposal
+            n_accepted += 1
+        draws[t] = phi
+    return draws, n_accepted / n_iter
 
 
 # ----------------------------------------------------------------------
