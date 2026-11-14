@@ -1,0 +1,10 @@
+\begin{tabular}{lrrrr}
+\toprule
+Estimator & ES (\%) & Rel. RMSE (\%) & Gain & Estimated / true SE, 5\%--95\% \\
+\midrule
+Plain Monte Carlo & 16.52 & 39.66 & 1 & [0.53, 1.59] \\
+Importance sampling, $a = 2$ & 16.24 & 0.53 & 5,578 & [0.88, 1.20] \\
+Importance sampling, $a = 1.5$ & 16.24 & 0.24 & 28,468 & [0.95, 1.02] \\
+Rao--Blackwell & 16.24 & 0.20 & 40,593 & [1.03, 1.06] \\
+\bottomrule
+\end{tabular}

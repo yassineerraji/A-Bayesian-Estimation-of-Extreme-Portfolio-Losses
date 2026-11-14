@@ -6,3 +6,9 @@ INSTRUCTIONS.md
 AgentDiscussion/
 archive_v1/
 context/
+*.aux
+*.log
+*.blg
+*.bbl
+*.out
+project-*.zip
