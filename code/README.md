@@ -25,12 +25,13 @@ Each notebook uses a fixed seed, so it reproduces the numbers of the report exac
 | Notebook | Produces (figures and tables go to `../report/`) | Report | Running time |
 |---|---|---|---|
 | `01_data.ipynb` | `data/returns.csv`, `figures/data_overview.pdf`, `tables/data_summary.tex` | Section 2 | a few seconds |
+| `02_model_and_sampler.ipynb` | `tables/prior_predictive.tex`, `tables/known_answers.tex`, `figures/known_answers.pdf` | Sections 3–4 | about 10 seconds |
 
 ## Files
 
 | Path | Content |
 |---|---|
-| `tools.py` | the functions shared by the notebooks |
+| `tools.py` | the functions shared by the notebooks: figure and table helpers, the Student-t model (likelihood, priors, Jacobian), our Metropolis–Hastings sampler and its tuning, the convergence diagnostics, and VaR/ES |
 | `data/` | the raw data snapshot and the daily log-returns |
 
 Libraries: NumPy, SciPy, pandas and Matplotlib, plus Jupyter to run the notebooks. The sampler and all the diagnostics are our own code; no probabilistic-programming library is used.
