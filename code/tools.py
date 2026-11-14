@@ -30,8 +30,11 @@ function is written once. The file grows with the project; its sections are:
         convergence_checks(table, accept_rates)         PASS/FAIL of our convergence targets
         plot_diagnostics(draws, labels, truth)          traces and autocorrelations of every chain
 
-    Risk measures (notebook 02)
+    Risk measures (notebooks 02-05)
         var_t(theta, alpha), es_t(theta, alpha)         Student-t VaR and ES of the one-day loss
+        var_gauss(theta, alpha), es_gauss(theta, alpha) Gaussian VaR and ES
+        tail_t(theta, v), tail_gauss(theta, v)          exact probability and mean beyond a loss v
+        predictive_var_es(theta_draws, alpha, model)    VaR and ES of the posterior predictive loss
 """
 
 from pathlib import Path
@@ -39,7 +42,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
-from scipy.optimize import minimize
+from scipy.optimize import brentq, minimize
 from scipy.special import gammaln
 
 
@@ -489,3 +492,62 @@ def es_t(theta, alpha):
     mu, sigma, nu = theta[..., 0], theta[..., 1], theta[..., 2]
     q = stats.t.ppf(alpha, nu)
     return -mu + sigma * stats.t.pdf(q, nu) / (1 - alpha) * (nu + q**2) / (nu - 1)
+
+
+def var_gauss(theta, alpha):
+    """Value-at-Risk at level alpha under the Gaussian model: -mu + s z_alpha; theta's last axis is (mu, s)."""
+    theta = np.asarray(theta)
+    return -theta[..., 0] + theta[..., 1] * stats.norm.ppf(alpha)
+
+
+def es_gauss(theta, alpha):
+    """Expected Shortfall at level alpha under the Gaussian model: -mu + s phi(z_alpha) / (1 - alpha)."""
+    theta = np.asarray(theta)
+    return -theta[..., 0] + theta[..., 1] * stats.norm.pdf(stats.norm.ppf(alpha)) / (1 - alpha)
+
+
+def tail_t(theta, v):
+    """For each draw of the Student-t model, P(L > v | theta) and E[L 1{L > v} | theta].
+
+    With L = -mu + sigma Z and c = (v + mu) / sigma: P(Z > c) and E[Z 1{Z > c}] = f(c) (nu + c^2) / (nu - 1).
+    """
+    theta = np.asarray(theta)
+    mu, sigma, nu = theta[..., 0], theta[..., 1], theta[..., 2]
+    c = (v + mu) / sigma
+    prob = stats.t.sf(c, nu)
+    mean_beyond = -mu * prob + sigma * stats.t.pdf(c, nu) * (nu + c**2) / (nu - 1)
+    return prob, mean_beyond
+
+
+def tail_gauss(theta, v):
+    """For each draw of the Gaussian model, P(L > v | theta) and E[L 1{L > v} | theta]."""
+    theta = np.asarray(theta)
+    mu, s = theta[..., 0], theta[..., 1]
+    c = (v + mu) / s
+    prob = stats.norm.sf(c)
+    mean_beyond = -mu * prob + s * stats.norm.pdf(c)
+    return prob, mean_beyond
+
+
+# ======================================================================
+# [COURSE] Posterior predictive: Ch. 3, Sec. 3.1.2, Example 3.2 (p. 41); Rao-Blackwell: Ch. 3,
+# Sec. 3.5.2, Proposition 3.4 (p. 47)
+# Tomorrow's loss follows a mixture of the model over the posterior draws. Instead of simulating
+# losses, we average over the draws the exact probability and the exact mean beyond a level v:
+# the same target, with the noise of simulating the loss removed.
+# ======================================================================
+def predictive_var_es(theta_draws, alpha, model="student_t"):
+    """VaR and ES at level alpha of the posterior predictive loss, a mixture over the posterior draws.
+
+    theta_draws: posterior draws, last axis (mu, sigma, nu) for "student_t" or (mu, s) for "gaussian".
+    VaR solves mean_i P(L > VaR | theta_i) = 1 - alpha, and ES = mean_i E[L 1{L > VaR} | theta_i] / (1 - alpha).
+    """
+    theta = np.asarray(theta_draws).reshape(-1, np.shape(theta_draws)[-1])  # all draws in one list
+    tail = tail_t if model == "student_t" else tail_gauss
+
+    def excess_probability(v):
+        return tail(theta, v)[0].mean() - (1 - alpha)
+
+    var = brentq(excess_probability, -1, 1)  # a daily log-loss lies well inside (-100%, +100%)
+    es = tail(theta, var)[1].mean() / (1 - alpha)
+    return var, es
