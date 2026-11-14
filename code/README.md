@@ -26,6 +26,7 @@ Each notebook uses a fixed seed, so it reproduces the numbers of the report exac
 |---|---|---|---|
 | `01_data.ipynb` | `data/returns.csv`, `figures/data_overview.pdf`, `tables/data_summary.tex` | Section 2 | a few seconds |
 | `02_model_and_sampler.ipynb` | `tables/prior_predictive.tex`, `tables/known_answers.tex`, `figures/known_answers.pdf` | Sections 3–4 | about 10 seconds |
+| `03_validation.ipynb` | `tables/recovery.tex`, `figures/validation_diagnostics.pdf`, `tables/tuning.tex`, `figures/tuning.pdf`, `tables/coverage.tex`, `figures/coverage.pdf` | Sections 4–5 | **about 8 minutes** (300 fits) |
 
 ## Files
 

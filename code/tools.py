@@ -15,16 +15,18 @@ function is written once. The file grows with the project; its sections are:
         log_likelihood(theta, y)                        Student-t log-likelihood
         log_prior(phi), log_posterior(phi, y)           log prior (Jacobian included), log posterior
 
-    Sampler (notebook 02)
+    Sampler (notebooks 02-03)
         metropolis(log_target, phi0, L, n_iter, rng)    random-walk Metropolis-Hastings
         laplace_cov(log_target, mode)                   Laplace approximation of the covariance
+        find_map(log_target, phi_start)                 the MAP and the Laplace covariance there
         run_chains(log_target, phi_start, rng)          our full recipe: MAP, pilot runs, 4 chains
         BURN_IN                                         iterations discarded at the start of a chain
 
-    Diagnostics (notebook 02)
+    Diagnostics (notebooks 02-03)
         autocorr(x, k), split_rhat(chains), ess(chains) autocorrelation, R-hat, effective sample size
         summarize(chains)                               posterior summary of one quantity
         convergence_checks(table, accept_rates)         PASS/FAIL of our convergence targets
+        plot_diagnostics(draws, labels, truth)          traces and autocorrelations of every chain
 
     Risk measures (notebook 02)
         var_t(theta, alpha), es_t(theta, alpha)         Student-t VaR and ES of the one-day loss
@@ -69,6 +71,7 @@ def set_style():
         "grid.color": "#E5E5E5",
         "axes.axisbelow": True,
         "figure.constrained_layout.use": True,  # spaces the panels automatically
+        "savefig.dpi": 300,  # resolution of the few rasterized layers (long traces); the rest is vector
     })
 
 
@@ -89,8 +92,8 @@ def latex_cell(value, fmt=None):
     else:
         text = str(value)
     text = text.replace("%", r"\%").replace("&", r"\&")
-    if isinstance(value, (int, float, np.integer, np.floating)):
-        text = text.replace("-", "$-$")
+    if text.startswith("-") and text[1:2].isdigit():  # a negative number, as a number or as text
+        text = "$-$" + text[1:]
     return text
 
 
@@ -235,6 +238,22 @@ def laplace_cov(log_target, mode, h=1e-4):
     return np.linalg.inv(-H)
 
 
+# ======================================================================
+# [COURSE] The MAP: Ch. 4, Sec. 4.1, Definition 4.1 (p. 51); a good starting point for every
+# sampler (App. C.3, p. 90)
+# ======================================================================
+def find_map(log_target, phi_start):
+    """The posterior mode (MAP) on the sampling scale, and the Laplace covariance there.
+
+    Returns (mode, covariance). The search starts at phi_start.
+    """
+    def minus_log_target(phi):
+        return -log_target(phi)
+    mode = minimize(minus_log_target, phi_start, method="BFGS").x
+    # DECISION: a finite-difference Hessian, not the BFGS estimate, which can be far off (found in v1)
+    return mode, laplace_cov(log_target, mode)
+
+
 BURN_IN = 2_000  # iterations discarded at the start of every chain (10% of a 20,000-iteration chain)
 
 
@@ -257,11 +276,7 @@ def run_chains(log_target, phi_start, rng, n_chains=4, n_iter=20_000, n_pilot=5_
     scale = 2.38 / np.sqrt(d)  # proposal covariance = scale^2 x posterior covariance
 
     # 1. The MAP (on the sampling scale), and the Laplace covariance as a first guess
-    # DECISION: a finite-difference Hessian, not the BFGS estimate, which can be far off (found in v1)
-    def minus_log_target(phi):
-        return -log_target(phi)
-    mode = minimize(minus_log_target, phi_start, method="BFGS").x
-    cov = laplace_cov(log_target, mode)
+    mode, cov = find_map(log_target, phi_start)
 
     # 2. Pilot runs from the MAP: each one re-estimates the posterior covariance from its own draws
     # DECISION: 3 rounds, so that the frozen proposal never rests on the Laplace guess alone (v1)
@@ -363,6 +378,42 @@ def convergence_checks(table, accept_rates):
         f"acceptance rate in [{ACCEPT_MIN}, {ACCEPT_MAX}] for every chain":
             bool(((accept_rates >= ACCEPT_MIN) & (accept_rates <= ACCEPT_MAX)).all()),
     }
+
+
+# ======================================================================
+# [COURSE] Convergence diagnostics: Ch. 6, Sec. 6.6 (p. 73); autocorrelations: Ch. 5, Example 5.8 (p. 64)
+# Chains from dispersed starts should forget them within the burn-in, then look like a stationary
+# "hairy caterpillar"; their autocorrelations should die out after a few lags.
+# ======================================================================
+def plot_diagnostics(draws, labels, truth=None, n_start=500, max_lag=50):
+    """Figure with one row per quantity: first iterations, traces after burn-in, autocorrelations.
+
+    draws: array (chains, iterations, quantities), burn-in included; labels: one axis label per quantity
+    truth: optional true values, drawn as black lines. Returns the figure.
+    """
+    n_chains, n_iter, k = draws.shape
+    shades = plt.cm.Blues(np.linspace(0.45, 0.95, n_chains))  # one shade of blue per chain
+    fig, axes = plt.subplots(k, 3, figsize=(6.3, 1.2 * k + 0.4), sharex="col", squeeze=False)
+    for i in range(k):
+        for c in range(n_chains):
+            chain = draws[c, :, i]
+            axes[i, 0].plot(chain[:n_start], color=shades[c], linewidth=0.6)
+            axes[i, 1].plot(np.arange(BURN_IN, n_iter), chain[BURN_IN:], color=shades[c],
+                            linewidth=0.2, rasterized=True)  # rasterized: a light PDF
+            acf = [autocorr(chain[BURN_IN:], lag) for lag in range(max_lag + 1)]
+            axes[i, 2].plot(acf, color=shades[c], linewidth=0.8)
+        if truth is not None:
+            axes[i, 0].axhline(truth[i], color="black", linewidth=0.8)
+            axes[i, 1].axhline(truth[i], color="black", linewidth=0.8)
+        axes[i, 0].set_ylabel(labels[i])
+    axes[0, 0].set_title(f"First {n_start} iterations")
+    axes[0, 1].set_title("After burn-in")
+    axes[0, 2].set_title("Autocorrelation")
+    axes[-1, 0].set_xlabel("Iteration")
+    axes[-1, 1].set_xlabel("Iteration")
+    axes[-1, 1].locator_params(axis="x", nbins=3)  # few ticks, so the long labels do not overlap
+    axes[-1, 2].set_xlabel("Lag")
+    return fig
 
 
 # ----------------------------------------------------------------------
