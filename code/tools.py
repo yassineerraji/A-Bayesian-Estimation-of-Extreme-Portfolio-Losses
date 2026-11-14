@@ -1,7 +1,7 @@
 """Functions shared by our notebooks.
 
 Every notebook imports what it needs from this file (`from tools import ...`), so that each
-function is written once. The file grows with the project; its sections are:
+function is written once. The file grows with the project. Its sections are:
 
     Figures and tables
         COLOR_T, COLOR_GAUSS, COLOR_OTHER, COLOR_DATA   our colours, one per role
@@ -153,10 +153,6 @@ def to_phi(theta, prior=PRIOR):
     return np.stack([mu, log_sigma, log_nu], axis=-1)
 
 
-# ======================================================================
-# [COURSE] Log scale against underflow: Ch. 1, Sec. 1.3.1, Remark 1.3 (p. 20)
-# A product of 5,031 densities rounds to 0 in floating point, so we always sum log densities.
-# ======================================================================
 def log_likelihood(theta, y):
     """Student-t log-likelihood l(theta) = sum over t of log p(y_t | mu, sigma, nu), constants included."""
     mu, sigma, nu = theta
@@ -166,13 +162,6 @@ def log_likelihood(theta, y):
     return log_density.sum()
 
 
-# ======================================================================
-# [COURSE] Change of variables: Ch. 2, Sec. 2.4.2, Proposition 2.1 (p. 34);
-# constrained parameters in MH: Ch. 6, Sec. 6.2 (p. 69)
-# We sample phi = (mu, log sigma, log(nu - nu_min)), which can take any real value. The density
-# of phi is the density of theta times |d sigma / d log sigma| = sigma and |d nu / d log(nu - nu_min)|
-# = nu - nu_min: on the log scale, we add log sigma + log(nu - nu_min), the Jacobian.
-# ======================================================================
 def log_prior(phi, prior=PRIOR):
     """Log prior density of phi = (mu, log sigma, log(nu - nu_min)), up to a constant, Jacobian included."""
     mu, sigma, nu = to_theta(phi, prior)
@@ -183,11 +172,6 @@ def log_prior(phi, prior=PRIOR):
     return log_p_mu + log_p_sigma + log_p_nu + log_jacobian
 
 
-# ======================================================================
-# [COURSE] Unnormalized posterior: Ch. 1, Sec. 1.2.2, Definition 1.3 (p. 15)
-# pi(theta | y) is proportional to p(y | theta) pi(theta). Metropolis-Hastings only uses ratios
-# of the posterior, so the evidence p(y) is never needed.
-# ======================================================================
 def log_posterior(phi, y, prior=PRIOR):
     """Unnormalized log posterior of phi given the returns y, for the Student-t model."""
     return log_likelihood(to_theta(phi, prior), y) + log_prior(phi, prior)
@@ -211,12 +195,6 @@ def log_posterior_gauss(phi, y, prior=PRIOR):
 # Sampler
 # ----------------------------------------------------------------------
 
-# ======================================================================
-# [COURSE] Metropolis-Hastings: Ch. 6, Sec. 6.2, Algorithm 4 (p. 69); random walk: Sec. 6.3 (p. 69)
-# Propose phi' = phi + L z and accept it with probability min{1, pi~(phi') / pi~(phi)}: the
-# proposal is symmetric, so the q-ratio of Algorithm 4 cancels. We compare on the log scale.
-# A rejected proposal records the current value again: repeats are part of the output.
-# ======================================================================
 def metropolis(log_target, phi0, L, n_iter, rng):
     """Random-walk Metropolis-Hastings with Gaussian proposal phi' = phi + L z, z ~ N(0, I).
 
@@ -240,11 +218,6 @@ def metropolis(log_target, phi0, L, n_iter, rng):
     return draws, n_accepted / n_iter
 
 
-# ======================================================================
-# [COURSE] Laplace approximation: Ch. 6, Sec. 6.5 (p. 72); Ch. 3, Example 3.4 (p. 45)
-# Near its mode, the posterior is close to a Gaussian whose covariance is the inverse of
-# minus the matrix of second derivatives (the Hessian) of log pi~ at the mode.
-# ======================================================================
 def laplace_cov(log_target, mode, h=1e-4):
     """Inverse of minus the Hessian of log_target at the mode, by central finite differences."""
     d = len(mode)
@@ -258,10 +231,6 @@ def laplace_cov(log_target, mode, h=1e-4):
     return np.linalg.inv(-H)
 
 
-# ======================================================================
-# [COURSE] The MAP: Ch. 4, Sec. 4.1, Definition 4.1 (p. 51); a good starting point for every
-# sampler (App. C.3, p. 90)
-# ======================================================================
 def find_map(log_target, phi_start):
     """The posterior mode (MAP) on the sampling scale, and the Laplace covariance there.
 
@@ -277,12 +246,6 @@ def find_map(log_target, phi_start):
 BURN_IN = 2_000  # iterations discarded at the start of every chain (10% of a 20,000-iteration chain)
 
 
-# ======================================================================
-# [COURSE] Tuning: Ch. 6, Sec. 6.5 (p. 72); the MAP: Ch. 4, Definition 4.1 (p. 51);
-# several chains from dispersed starting points: Sec. 6.6 (p. 73)
-# Start from the MAP with the Laplace scale, run pilots, then freeze the proposal covariance
-# at (2.38^2 / d) Sigma_hat, which aims for an acceptance rate between 0.2 and 0.5.
-# ======================================================================
 def run_chains(log_target, phi_start, rng, n_chains=4, n_iter=20_000, n_pilot=5_000,
                pilot_rounds=3, spread=5):
     """Our full sampling recipe: find the MAP, tune the proposal with pilot runs, run several chains.
@@ -320,12 +283,6 @@ def run_chains(log_target, phi_start, rng, n_chains=4, n_iter=20_000, n_pilot=5_
     return chains, accept_rates
 
 
-# ======================================================================
-# [COURSE] Independence sampler: Ch. 6, Sec. 6.3 (p. 70); its proposal, the Laplace approximation
-# with Student-t tails: Ch. 3, Example 3.4 (p. 45)
-# Proposals come from a fixed density g, so the acceptance probability min{1, pi~(phi') g(phi) /
-# (pi~(phi) g(phi'))} is the ratio of the importance weights w = pi~ / g of the two points.
-# ======================================================================
 def independence_sampler(log_target, mode, cov, n_iter, rng, df=4):
     """Independence Metropolis-Hastings with a fixed Student-t proposal g centred at the MAP.
 
@@ -353,7 +310,7 @@ def independence_sampler(log_target, mode, cov, n_iter, rng, df=4):
 # Diagnostics: for one quantity, `chains` has shape (number of chains, draws per chain)
 # ----------------------------------------------------------------------
 
-# Targets every MCMC run must meet (lecture notes, App. C.3 and C.4, p. 90)
+# Targets every MCMC run must meet
 RHAT_MAX = 1.01
 ESS_MIN = 1_000
 ACCEPT_MIN, ACCEPT_MAX = 0.2, 0.5
@@ -365,11 +322,6 @@ def autocorr(x, k):
     return np.sum(x[: len(x) - k] * x[k:]) / np.sum(x * x)
 
 
-# ======================================================================
-# [COURSE] Split-R-hat: Ch. 6, Sec. 6.6, Definition 6.2 (p. 73)
-# Split each chain in two halves; compare the variance between the means of the halves with the
-# variance within them. If all halves sample the same distribution, R-hat is close to 1.
-# ======================================================================
 def split_rhat(chains):
     """Split-R-hat of one quantity."""
     n = chains.shape[1] // 2
@@ -379,16 +331,11 @@ def split_rhat(chains):
     return np.sqrt(((n - 1) / n * W + B_over_n) / W)
 
 
-# ======================================================================
-# [COURSE] Effective sample size: Ch. 5, Sec. 5.5, Theorem 5.2 and eq. (5.4) (p. 64)
-# N correlated draws are worth ESS = N / tau independent ones, with tau = 1 + 2 sum_k rho_k,
-# and the Monte Carlo standard error of a mean is sd / sqrt(ESS) (App. C.1, p. 88).
-# ======================================================================
 def ess(chains):
     """Effective sample size of all the draws of one quantity, chains pooled."""
     m, n = chains.shape
-    # DECISION: the course defines tau but no rule to stop the sum; we stop at the first negative
-    # autocorrelation (averaged over chains), beyond which the estimates are mostly noise
+    # DECISION: tau needs a rule to stop the sum; we stop at the first negative autocorrelation
+    # (averaged over chains), beyond which the estimates are mostly noise
     tau = 1.0
     for k in range(1, n):
         rho_k = np.mean([autocorr(chain, k) for chain in chains])
@@ -398,10 +345,6 @@ def ess(chains):
     return m * n / tau
 
 
-# ======================================================================
-# [COURSE] Monte Carlo estimators of posterior summaries: Ch. 1, Sec. 1.4.2, Definition 1.7 (p. 23)
-# Posterior means, quantiles and probabilities are averages or quantiles of the draws.
-# ======================================================================
 def summarize(chains):
     """Posterior mean, sd and 95% interval of one quantity, with its split-R-hat, ESS and MCSE."""
     n_eff = ess(chains)
@@ -429,11 +372,6 @@ def convergence_checks(table, accept_rates):
     }
 
 
-# ======================================================================
-# [COURSE] Convergence diagnostics: Ch. 6, Sec. 6.6 (p. 73); autocorrelations: Ch. 5, Example 5.8 (p. 64)
-# Chains from dispersed starts should forget them within the burn-in, then look like a stationary
-# "hairy caterpillar"; their autocorrelations should die out after a few lags.
-# ======================================================================
 def plot_diagnostics(draws, labels, truth=None, n_start=500, max_lag=50):
     """Figure with one row per quantity: first iterations, traces after burn-in, autocorrelations.
 
@@ -469,11 +407,6 @@ def plot_diagnostics(draws, labels, truth=None, n_start=500, max_lag=50):
 # Risk measures of the one-day loss L = -y
 # ----------------------------------------------------------------------
 
-# ======================================================================
-# [COURSE] Posterior of a function of the parameters: Ch. 1, Sec. 1.2.2, Definition 1.4 (p. 16)
-# VaR and ES are functions h(theta). Applied to every posterior draw, they give draws from the
-# posterior of VaR and ES, whose means, intervals and probabilities follow by Monte Carlo.
-# ======================================================================
 def var_t(theta, alpha):
     """Value-at-Risk at level alpha under the Student-t model: VaR = -mu + sigma q, q the alpha-quantile.
 
@@ -530,13 +463,6 @@ def tail_gauss(theta, v):
     return prob, mean_beyond
 
 
-# ======================================================================
-# [COURSE] Posterior predictive: Ch. 3, Sec. 3.1.2, Example 3.2 (p. 41); Rao-Blackwell: Ch. 3,
-# Sec. 3.5.2, Proposition 3.4 (p. 47)
-# Tomorrow's loss follows a mixture of the model over the posterior draws. Instead of simulating
-# losses, we average over the draws the exact probability and the exact mean beyond a level v:
-# the same target, with the noise of simulating the loss removed.
-# ======================================================================
 def predictive_var_es(theta_draws, alpha, model="student_t", weights=None):
     """VaR and ES at level alpha of the posterior predictive loss, a mixture over the posterior draws.
 
